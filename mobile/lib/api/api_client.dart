@@ -16,8 +16,10 @@ class ApiClient {
   ApiClient({this.onSessionLost}) {
     final base = BaseOptions(
       baseUrl: AppConfig.apiBaseUrl,
-      connectTimeout: const Duration(seconds: 6),
-      receiveTimeout: const Duration(seconds: 15),
+      // Generous timeouts so a free cloud host's cold start (~30-50s the first
+      // time it wakes) doesn't look like a failure.
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 60),
       headers: {'Content-Type': 'application/json'},
     );
     _dio = Dio(base);
@@ -123,23 +125,32 @@ class ApiClient {
   }
 
   // -- requests ---------------------------------------------------------
-  Future<dynamic> get(String path, {Map<String, dynamic>? query}) async {
-    try {
-      final res = await _dio.get(path, queryParameters: query);
-      return res.data;
-    } on DioException catch (e) {
-      throw _toApiException(e);
+  // A free cloud host returns 502/503/504 (or times out) for a few seconds
+  // while it wakes from sleep. Retry a couple of times so the first request
+  // after an idle spell just takes a moment instead of failing.
+  static const _coldStart = {502, 503, 504};
+
+  Future<T> _withRetry<T>(Future<T> Function() send) async {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        return await send();
+      } on DioException catch (e) {
+        final status = e.response?.statusCode;
+        final wakeable = _coldStart.contains(status) ||
+            e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.connectionError;
+        if (!wakeable || attempt >= 3) throw _toApiException(e);
+        await Future.delayed(Duration(seconds: 4 * (attempt + 1))); // 4s, 8s, 12s
+      }
     }
   }
 
-  Future<dynamic> post(String path, {Object? body}) async {
-    try {
-      final res = await _dio.post(path, data: body);
-      return res.data;
-    } on DioException catch (e) {
-      throw _toApiException(e);
-    }
-  }
+  Future<dynamic> get(String path, {Map<String, dynamic>? query}) =>
+      _withRetry(() async => (await _dio.get(path, queryParameters: query)).data);
+
+  Future<dynamic> post(String path, {Object? body}) =>
+      _withRetry(() async => (await _dio.post(path, data: body)).data);
 
   ApiException _toApiException(DioException e) {
     if (e.type == DioExceptionType.connectionTimeout ||
