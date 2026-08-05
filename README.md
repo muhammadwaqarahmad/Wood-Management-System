@@ -1,111 +1,158 @@
-# Abdul Sattar Woods — عبدالستار ووڈز
+# Wood Management System — Abdul Sattar Woods · عبدالستار ووڈز
 
-Desktop app for managing wood trading between **baparis** (suppliers) and
-**factories** (buyers): ledgers, payments, profit tracking, and reports.
-Fully bilingual — **English or Urdu** (single-language UI), switchable at
-login or in Settings; Urdu uses right-to-left layout. Language is stored
-per-PC in `storage/settings.json` ([i18n.py](timber/i18n.py)).
+A complete accounting & business-management platform for a **timber commission
+business** — it buys timber from suppliers (*baparis*) and sells to factories,
+and tracks every trade, payment, ledger, and rupee of profit in between.
 
-> Profit per load = (factory rate − bapari rate) × weight
+Built as **one system with three faces**: a fast Windows **desktop app** for
+daily data entry, a **mobile app** (Android + iPhone) for viewing on the go, and
+an always-on **cloud API** so the phones work anywhere — all sharing the same
+accounting engine. Fully **bilingual (English / اردو)** with right-to-left support.
+
+> Profit per load = (factory rate − supplier rate) × weight
+
+> ⚠️ **Proprietary software.** This is a closed commercial product, **not
+> open-source**. Any use requires a paid license / purchased key — see
+> [LICENSE](LICENSE).
+
+---
+
+## What it does
+
+- **Trades** — record purchases from suppliers and sales to factories (weight,
+  rate, freight, vehicle, wood type).
+- **Payments** — money paid to suppliers / received from factories, in both
+  directions (cash, bank, online, cheque), auto-allocated to loads (FIFO).
+- **Ledgers** — per-party running statements, factory sub-ledgers (weekly /
+  irregular split), trade ledger, profit ledger, financial position.
+- **Money** — bank accounts, bank book, transfers, expenses, cheques, loans.
+- **Reports & Dashboard** — sales / purchases / profit, cash-flow, per-party
+  performance, overdue & aging buckets, daily book (روزنامچہ).
+- **Master data** — suppliers, factories, wood types.
+- **Security** — user accounts with roles, audit log, JWT-secured API, and
+  fingerprint / Face-ID unlock on mobile.
+- **Bilingual & themeable** — every screen switches between English and Urdu
+  (RTL), plus light / dark themes.
+
+---
 
 ## Tech stack
 
-Python 3.11+ · PyQt6 · SQLAlchemy · SQLite (dev) / PostgreSQL (LAN prod) ·
-ReportLab + openpyxl (reports) · bcrypt (auth) · PyInstaller (.exe).
+| Layer | Technology |
+|-------|-----------|
+| **Desktop app** | Python 3.12, **PyQt6** (Qt Widgets), SQLAlchemy 2.0 ORM, Alembic migrations |
+| **Database** | **PostgreSQL** (LAN / production), SQLite (standalone), **Supabase** (cloud) |
+| **Backend / API** | **FastAPI**, Uvicorn, PyJWT (access + rotating refresh tokens), bcrypt |
+| **Mobile app** | **Flutter / Dart**, Riverpod (state), dio (HTTP), flutter_secure_storage, local_auth (biometrics) |
+| **Cloud / infra** | Supabase (Postgres), Render (API hosting), Cloudflare R2 (off-site backups), Docker |
+| **Reports** | ReportLab (PDF), openpyxl (Excel), Urdu shaping (arabic-reshaper + python-bidi) |
 
-Switching SQLite ↔ PostgreSQL is one line in [timber/config.py](timber/config.py)
-(`DB_BACKEND`) or the `TIMBER_DB_BACKEND` env var.
+Switching SQLite ↔ PostgreSQL is one setting in
+[`timber/config.py`](timber/config.py) (`DB_BACKEND`) or the
+`TIMBER_DB_BACKEND` environment variable.
 
-## Project layout (4-layer architecture)
+---
+
+## Architecture
 
 ```
-timber/
-  app.py            entry point (QApplication bootstrap)
-  config.py         settings + DB backend switch
-  ui/               presentation layer  (windows, screens, widgets)
-  core/             business logic       (auth, calculations, ledgers)
-  db/               data-access layer
-    engine.py       SQLAlchemy engine + session + Base
-    models/         ORM models           (Phase 1)
-    repositories/   query/persistence    (Phase 1+)
-  utils/            shared helpers
-  resources/        fonts, icons, styles
-storage/            runtime data: sqlite db, backups, reports, logs (git-ignored)
-run.py              convenience launcher
+  Windows desktop app ──writes──►  LOCAL PostgreSQL   (fast, primary on the office LAN)
+        │
+        └── twice-daily backup ──►  SUPABASE Postgres (cloud) ──►  Cloudflare R2 (off-site)
+                                          ▲
+                                          │ reads (read-only)
+                           Cloud API (FastAPI on Render, always-on)
+                                          ▲
+                                          │ HTTPS, from anywhere
+                                   📱 Mobile app (Android / iPhone)
 ```
 
-## Setup (Phase 0)
+- The **desktop** app uses the **local** database for speed (all data entry).
+- The **mobile** app is **read-only** and reads the **cloud** copy, so it works
+  24/7 — even when the office PC is off. Write actions on mobile are shown but
+  intentionally disabled (data is entered on the desktop).
 
+---
+
+## Repository layout
+
+```
+timber/            Core Python package (shared by desktop + API)
+  core/            Business logic: ledgers, payments, reports, dashboard, auth
+  db/              SQLAlchemy models, engine, Alembic migrations
+  ui/              PyQt desktop screens
+  api/             FastAPI app + routers (read-only mobile API)
+mobile/            Flutter mobile app (lib/, android/, ...)
+deploy/            Cloud + LAN setup, backups, and the cloud-API Docker package
+  cloud-api/       Dockerfile, render.yaml, requirements for the always-on API
+requirements.txt   Desktop Python dependencies
+```
+
+---
+
+## Running it
+
+### Desktop app (Windows)
 ```powershell
-# 1. Create and activate a virtual environment
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-
-# 2. Install dependencies
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-
-# 3. (optional) configure environment
-copy .env.example .env
-
-# 4. Run
-python run.py
+python -m alembic upgrade head     # create / update the schema
+python run.py                      # launch the desktop app
 ```
+Configure the database via environment variables or a `.env` next to the exe —
+see [`deploy/LOCAL_SETUP.md`](deploy/LOCAL_SETUP.md).
 
-You should see a window confirming the app launched, Urdu renders RTL, and the
-database connection succeeded.
-
-## Database migrations (Alembic)
-
-Alembic is the source of truth for the schema.
-
+### API (local test)
 ```powershell
-# Apply all pending migrations (also: python -m timber.db.init_db)
-python -m alembic upgrade head
-
-# After changing a model, create a new migration, then apply it
-python -m alembic revision --autogenerate -m "describe the change"
-python -m alembic upgrade head
-
-# Roll back the most recent migration
-python -m alembic downgrade -1
+pip install -r deploy/cloud-api/requirements-api.txt
+uvicorn timber.api.main:app --host 0.0.0.0 --port 8000
+# health check: http://localhost:8000/health
 ```
 
-## Build phases
+### Cloud API (always-on, for mobile)
+Deploy the container in [`deploy/cloud-api/`](deploy/cloud-api/) to Render (or
+any Docker host), pointed at Supabase. Full guide:
+[`deploy/MOBILE_CLOUD_API.md`](deploy/MOBILE_CLOUD_API.md).
 
-| Phase | Work | Status |
-|---|---|---|
-| 0 | Setup & structure | ✅ done |
-| 1 | Database models + Alembic migrations | ✅ done |
-| 2 | Core logic (auth, calculations, balances) | ✅ done |
-| 3 | Entry screens (quick/bapari/factory/combined/payment) | ✅ done |
-| 4 | Ledgers (7 views) | ✅ done |
-| 5 | Dashboard & charts (Qt Charts) | ✅ done |
-| 6 | Reports & PDF/Excel export | ✅ done |
-| 7 | Search, backup, audit, bulk import, settings/management | ✅ done |
-| 8 | Testing & hardening (logging, exception handler, 85 tests) | ✅ done |
-| 9 | Packaging (.exe) + Urdu user guide | ⬜ |
+### Mobile app (Flutter)
+```powershell
+cd mobile
+flutter pub get
+flutter build apk --release --dart-define=API_URL=https://<your-api-url>
+```
+Install the resulting `.apk` on Android. iOS builds require macOS (or a cloud-Mac
+service such as Codemagic — a `codemagic.yaml` is included). Inside the app you
+can also set the server address on the login screen (no rebuild needed).
 
+---
 
-desing the legger exaclty like this and remove outstanding columns 
- and we do paytement in status it only show bank it must show from which bank it decuted and to which account it go to supplier 
-prorper bnak name if cash it show cash 
+## First login
 
-and in expenses cloulms freight is even visibnle properly set it and make possible for multiple lines 
+The app creates a default administrator account on first setup:
 
-and banlces must works like i show the ledger for fatory and supplier legger 
-for supplier either ledegr or any other page if balance is negative it mean we have to give that to suplier and if balnce is positive it means supllier should have to send that amount to us or send truks of woods whatever same like leger screenshot of client 
+- **Username:** `admin`
+- **Initial password:** `admin123`
 
-same like for factory balnce is negartive it means that amount factory hav eto sned us and 
-mmake it possible and opening balace is directly link to our account either for supplier or facorty or our account opening balnce msut change means upadted balance 
+> 🔒 **Change this password immediately after the first login.** Never expose the
+> app or its API to the internet while the default password is still active.
+> Additional users and roles are managed inside the app.
 
-do a smoke test to test it exaclty by putting same data of tehse two leger and send to any facortory and check if it working correclty 
+---
 
+## Security & data
 
-one more for all proejct while we do new enteri and new row at any page make it for all project that new enetry or new row must shown above the old not below the old row for pages
+- Passwords are hashed with **bcrypt**; the API issues **JWT** access + rotating
+  refresh tokens. The mobile app stores the refresh token in the device's secure
+  keystore (Keychain / Keystore) and never saves the password.
+- Real credentials (database passwords, API secrets, cloud keys) live only in
+  local `.env` files and host dashboards — they are **git-ignored** and never
+  committed to this repository.
 
+---
 
+## License
 
-C:\src\flutter\bin\flutter.bat run -d chrome --dart-define=API_URL=http://127.0.0.1:8000
-
-
-uvicorn timber.api.main:app --host 0.0.0.0 --port 8000, and web → python -m http.server 8080 --bind 0.0.0.0 --directory build/web (from the mobile folder).
+© 2026 Muhammad Waqar Ahmad. All rights reserved.
+**Proprietary / commercial** — use requires a paid license or purchased key.
+See [LICENSE](LICENSE). For licensing, contact the owner via
+[github.com/muhammadwaqarahmad](https://github.com/muhammadwaqarahmad).
