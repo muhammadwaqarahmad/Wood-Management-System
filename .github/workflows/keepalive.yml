@@ -1,11 +1,12 @@
-# Keeps the free cloud API awake so the phone never waits for a cold start.
-# Pings the public /health endpoint every ~10 minutes.
+# Keeps the free cloud API awake AND the Supabase project active.
+# Pings the public /ping endpoint (which runs a real DB query) every ~10 minutes,
+# so Render never sleeps and Supabase never auto-pauses (its 7-day inactivity pause).
 #
 # SETUP (one-time): in GitHub → repo → Settings → Secrets and variables →
 #   Actions → Variables → New variable:
 #       Name:  API_HEALTH_URL
-#       Value: https://<your-render-service>.onrender.com/health
-# No secrets needed — /health is public.
+#       Value: https://asw-api-yv7s.onrender.com/ping
+# No secrets needed — /ping is public.
 name: keep-api-awake
 
 on:

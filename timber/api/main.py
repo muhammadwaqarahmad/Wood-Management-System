@@ -1,11 +1,14 @@
 """The FastAPI application: wires the routers and CORS together."""
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from timber import __version__, config
 from timber.api import settings
+from timber.api.deps import get_session
 from timber.api.routers import (
     auth,
     dashboard,
@@ -48,10 +51,19 @@ app.include_router(trades.router)
 
 @app.get("/health", tags=["meta"])
 def health() -> dict:
-    """Liveness check — no auth. Confirms the API is up and which DB it uses."""
+    """Liveness check — no auth, no DB. Confirms the API process is up."""
     return {
         "ok": True,
         "app": config.APP_NAME,
         "version": __version__,
         "backend": config.DB_BACKEND,
     }
+
+
+@app.get("/ping", tags=["meta"])
+def ping(session: Session = Depends(get_session)) -> dict:
+    """Keep-alive that runs a real DB query (SELECT 1). Pinging this every ~10
+    minutes keeps the Render service awake AND keeps the Supabase project active
+    (a free Supabase project auto-pauses after ~7 days with no connections)."""
+    session.execute(text("SELECT 1"))
+    return {"ok": True, "db": "up"}

@@ -104,20 +104,25 @@ Or send me the Render URL and I'll build it for you.
 
 ---
 
-## Keep the cloud API awake (so there's no cold-start wait)
+## Keep the cloud API awake AND Supabase un-paused (permanent fix)
 
-Render's **free** service sleeps after ~15 min idle. Ping `/health` every few
-minutes to keep it warm. `/health` is public (no secret), so pick either:
+Two free-tier timers to defeat with ONE ping:
+- Render **free** sleeps after ~15 min idle.
+- Supabase **free** auto-pauses after ~7 days with no DB connections.
+
+The **`/ping`** endpoint runs a real `SELECT 1`, so pinging it every ~10 minutes
+keeps Render awake **and** keeps Supabase active (regular DB queries). `/ping` is
+public (no secret). Pick either:
 
 **A. cron-job.org (recommended — most reliable, free):**
 1. Sign up at cron-job.org.
-2. New cronjob → URL `https://<your-service>.onrender.com/health`, method GET.
+2. New cronjob → URL `https://asw-api-yv7s.onrender.com/ping`, method GET.
 3. Schedule: every **10 minutes**. Save. Done.
 
 **B. GitHub Action (already in this repo — no extra account):**
 - File `.github/workflows/keepalive.yml` pings every 10 min.
 - Activate it: GitHub → repo → Settings → *Secrets and variables → Actions →
-  Variables* → add `API_HEALTH_URL = https://<your-service>.onrender.com/health`.
+  Variables* → add `API_HEALTH_URL = https://asw-api-yv7s.onrender.com/ping`.
 - (GitHub disables schedules after 60 days of no repo commits, and timing can
   drift a few minutes — cron-job.org is steadier, so prefer A for keep-warm.)
 
