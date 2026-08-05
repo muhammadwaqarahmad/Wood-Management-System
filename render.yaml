@@ -1,0 +1,38 @@
+# Render Blueprint (must live at repo root so Render auto-detects it).
+# Deploys the always-on cloud API for the mobile app, pointed at Supabase.
+#
+# In Render: New + → Blueprint → pick this repo → it reads this file →
+# then set the two SECRET vars (sync:false) in the dashboard → Apply.
+services:
+  - type: web
+    name: asw-api
+    runtime: docker
+    dockerfilePath: ./deploy/cloud-api/Dockerfile
+    dockerContext: .
+    plan: free            # free = sleeps after ~15 min idle (~50s cold start). "starter" ($7/mo) stays always-on.
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      - key: TIMBER_DB_BACKEND
+        value: postgresql
+      - key: TIMBER_PG_HOST
+        value: aws-0-ap-southeast-1.pooler.supabase.com
+      - key: TIMBER_PG_PORT
+        value: "5432"
+      - key: TIMBER_PG_USER
+        value: postgres.piqrfdwirbpbfcdibdmh
+      - key: TIMBER_PG_DB
+        value: postgres
+      - key: TIMBER_PG_SSLMODE
+        value: require
+      - key: TIMBER_PG_CONNECT_TIMEOUT
+        value: "8"
+      - key: TIMBER_AUDIT_RETENTION_DAYS
+        value: "3"
+      - key: TIMBER_API_CORS
+        value: "*"
+      # ---- SECRETS: set these in the Render dashboard (never in git) ----
+      - key: TIMBER_PG_PASSWORD   # your Supabase database password
+        sync: false
+      - key: TIMBER_API_SECRET    # a long random string (JWT signing key)
+        sync: false
