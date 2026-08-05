@@ -1,0 +1,9 @@
+# Headless cloud API dependencies (no PyQt / desktop libs).
+# Reads the SAME timber.core against Supabase Postgres.
+fastapi==0.139.0
+uvicorn[standard]==0.49.0
+pyjwt==2.13.0
+SQLAlchemy==2.0.36
+psycopg[binary]==3.2.3
+bcrypt==4.2.1
+python-dotenv==1.0.1

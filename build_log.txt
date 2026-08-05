@@ -1,0 +1,163 @@
+2017 INFO: PyInstaller: 6.11.1, contrib hooks: 2026.6
+2021 INFO: Python: 3.12.7
+2250 INFO: Platform: Windows-10-10.0.19045-SP0
+2250 INFO: Python environment: E:\Projects\Abdul Sattar Woods\.venv
+2334 INFO: Removing temporary files and cleaning cache in C:\Users\User\AppData\Local\pyinstaller
+6240 WARNING: Failed to collect submodules for 'alembic.testing.suite' because importing 'alembic.testing.suite' raised: AttributeError: 'SuiteRequirements' object has no attribute 'computed_reflects_normally'
+16204 INFO: Module search paths (PYTHONPATH):
+['E:\\Projects\\Abdul Sattar Woods',
+ 'C:\\Program Files\\Python312\\python312.zip',
+ 'C:\\Program Files\\Python312\\DLLs',
+ 'C:\\Program Files\\Python312\\Lib',
+ 'C:\\Program Files\\Python312',
+ 'E:\\Projects\\Abdul Sattar Woods\\.venv',
+ 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages',
+ 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\win32',
+ 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\win32\\lib',
+ 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\pythonwin',
+ 'E:\\Projects\\Abdul Sattar Woods']
+19347 INFO: Appending 'datas' from .spec
+19396 INFO: checking Analysis
+19396 INFO: Building Analysis because Analysis-00.toc is non existent
+19396 INFO: Running Analysis Analysis-00.toc
+19396 INFO: Target bytecode optimization level: 0
+19396 INFO: Initializing module dependency graph...
+19420 INFO: Initializing module graph hook caches...
+19860 INFO: Analyzing base_library.zip ...
+37348 INFO: Processing standard module hook 'hook-encodings.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+57390 INFO: Processing standard module hook 'hook-pickle.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+77256 INFO: Processing standard module hook 'hook-heapq.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+95879 INFO: Caching module dependency graph...
+98758 INFO: Looking for Python shared library...
+98982 INFO: Using Python shared library: C:\Program Files\Python312\python312.dll
+98982 INFO: Analyzing E:\Projects\Abdul Sattar Woods\run.py
+99197 INFO: Processing standard module hook 'hook-PySide6.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+101895 INFO: Processing standard module hook 'hook-shiboken6.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+101948 INFO: Processing standard module hook 'hook-PySide6.QtNetwork.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+110739 INFO: Processing standard module hook 'hook-PySide6.QtWidgets.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+114639 INFO: Processing standard module hook 'hook-PySide6.QtCore.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+124044 INFO: Processing standard module hook 'hook-sqlalchemy.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+131552 INFO: Processing standard module hook 'hook-platform.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+131638 INFO: Processing pre-safe-import-module hook 'hook-importlib_metadata.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+131654 INFO: SetuptoolsInfo: initializing cached setuptools info...
+138657 INFO: Setuptools: 'importlib_metadata' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.importlib_metadata'!
+138912 INFO: Processing standard module hook 'hook-setuptools.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+139603 INFO: Processing pre-safe-import-module hook 'hook-distutils.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+140746 INFO: Processing standard module hook 'hook-sysconfig.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+141013 INFO: Processing pre-safe-import-module hook 'hook-jaraco.functools.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+141031 INFO: Setuptools: 'jaraco.functools' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.jaraco.functools'!
+141264 INFO: Processing pre-safe-import-module hook 'hook-more_itertools.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+141281 INFO: Setuptools: 'more_itertools' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.more_itertools'!
+143357 INFO: Processing pre-safe-import-module hook 'hook-typing_extensions.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+147063 INFO: Processing standard module hook 'hook-multiprocessing.util.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+148700 INFO: Processing standard module hook 'hook-xml.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+163864 INFO: Processing pre-safe-import-module hook 'hook-packaging.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+164257 INFO: Processing standard module hook 'hook-packaging.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+168250 INFO: Processing pre-safe-import-module hook 'hook-jaraco.text.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+168250 INFO: Setuptools: 'jaraco.text' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.jaraco.text'!
+168568 INFO: Processing standard module hook 'hook-setuptools._vendor.jaraco.text.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+168622 INFO: Processing pre-safe-import-module hook 'hook-importlib_resources.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+168639 INFO: Processing pre-safe-import-module hook 'hook-jaraco.context.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+168645 INFO: Setuptools: 'jaraco.context' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.jaraco.context'!
+182171 INFO: Processing pre-safe-import-module hook 'hook-tomli.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+182204 INFO: Setuptools: 'tomli' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.tomli'!
+192785 INFO: Processing pre-safe-import-module hook 'hook-wheel.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+192790 INFO: Setuptools: 'wheel' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.wheel'!
+194347 INFO: Processing standard module hook 'hook-setuptools._vendor.importlib_metadata.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+195933 INFO: Processing pre-safe-import-module hook 'hook-zipp.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+195942 INFO: Setuptools: 'zipp' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.zipp'!
+247216 INFO: Processing standard module hook 'hook-mako.codegen.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+254225 INFO: Processing standard module hook 'hook-zoneinfo.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+269787 INFO: Processing standard module hook 'hook-psycopg_binary.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+283661 INFO: Processing standard module hook 'hook-bcrypt.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+285020 INFO: Processing standard module hook 'hook-PySide6.QtGui.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+292282 INFO: Processing standard module hook 'hook-PySide6.QtSvg.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+297973 INFO: Processing standard module hook 'hook-openpyxl.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+301863 INFO: Processing standard module hook 'hook-xml.etree.cElementTree.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+305833 INFO: Processing standard module hook 'hook-PIL.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+307240 INFO: Processing standard module hook 'hook-PIL.Image.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+313591 INFO: Processing standard module hook 'hook-PIL.ImageFilter.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+323338 INFO: Processing standard module hook 'hook-reportlab.lib.utils.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+324453 INFO: Processing standard module hook 'hook-reportlab.pdfbase._fontdata.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+331148 INFO: Processing standard module hook 'hook-chardet.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+343786 INFO: Processing standard module hook 'hook-difflib.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+366910 INFO: Processing standard module hook 'hook-xml.dom.domreg.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+372051 INFO: Processing standard module hook 'hook-sqlite3.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+376764 INFO: Analyzing hidden import 'psycopg._dns'
+376988 INFO: Analyzing hidden import 'psycopg.crdb'
+377332 INFO: Analyzing hidden import 'psycopg.pq._debug'
+377458 INFO: Analyzing hidden import 'psycopg.types.shapely'
+377567 INFO: Analyzing hidden import 'PySide6.QtCharts'
+377598 INFO: Analyzing hidden import 'PySide6.QtPrintSupport'
+377598 INFO: Analyzing hidden import 'reportlab.graphics.barcode'
+379438 INFO: Analyzing hidden import 'logging.config'
+379768 INFO: Analyzing hidden import 'alembic.__main__'
+379831 INFO: Analyzing hidden import 'alembic.environment'
+379893 INFO: Analyzing hidden import 'alembic.migration'
+379987 INFO: Analyzing hidden import 'alembic.testing'
+383146 INFO: Analyzing hidden import 'alembic.testing.plugin'
+383161 INFO: Analyzing hidden import 'alembic.testing.plugin.bootstrap'
+383243 INFO: Analyzing hidden import 'alembic.testing.requirements'
+383810 INFO: Analyzing hidden import 'alembic.testing.schemacompare'
+383966 INFO: Analyzing hidden import 'alembic.testing.warnings'
+384054 INFO: Processing module hooks (post-graph stage)...
+384063 WARNING: Hidden import "_cffi_backend" not found!
+384073 WARNING: Hidden import "ascii__mypyc" not found!
+384082 WARNING: Hidden import "confusion__mypyc" not found!
+384089 WARNING: Hidden import "escape__mypyc" not found!
+384095 WARNING: Hidden import "magic__mypyc" not found!
+384095 WARNING: Hidden import "orchestrator__mypyc" not found!
+384105 WARNING: Hidden import "statistical__mypyc" not found!
+384116 WARNING: Hidden import "structural__mypyc" not found!
+384125 WARNING: Hidden import "utf1632__mypyc" not found!
+384133 WARNING: Hidden import "utf8__mypyc" not found!
+384142 WARNING: Hidden import "validity__mypyc" not found!
+384751 WARNING: Hidden import "psycopg_binary._uuid" not found!
+385094 WARNING: Hidden import "pkg_resources" not found!
+391260 INFO: Processing standard module hook 'hook-PIL.SpiderImagePlugin.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+392759 INFO: Processing standard module hook 'hook-PySide6.QtCharts.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+398083 INFO: Processing standard module hook 'hook-PySide6.QtOpenGL.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+402090 INFO: Processing standard module hook 'hook-PySide6.QtOpenGLWidgets.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+404227 INFO: Processing standard module hook 'hook-PySide6.QtPrintSupport.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+408630 INFO: Processing standard module hook 'hook-sqlalchemy.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+412566 WARNING: Hidden import "pysqlite2" not found!
+412566 WARNING: Hidden import "MySQLdb" not found!
+415671 INFO: Processing standard module hook 'hook-tzdata.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+421582 INFO: Performing binary vs. data reclassification (794 entries)
+461702 INFO: Looking for ctypes DLLs
+462103 INFO: Analyzing run-time hooks ...
+462166 INFO: Including run-time hook 'pyi_rth_inspect.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+462300 INFO: Including run-time hook 'pyi_rth_pkgutil.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+462393 INFO: Including run-time hook 'pyi_rth_multiprocessing.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+462487 INFO: Including run-time hook 'pyi_rth_setuptools.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+462565 INFO: Including run-time hook 'pyi_rth_pyside6.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+462659 INFO: Processing pre-find-module-path hook 'hook-_pyi_rth_utils.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_find_module_path'
+462786 INFO: Processing standard module hook 'hook-_pyi_rth_utils.py' from 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+463679 INFO: Looking for dynamic libraries
+484047 INFO: Extra DLL search directories (AddDllDirectory): ['E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\shiboken6', 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\psycopg_binary.libs', 'E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\psycopg_binary.libs']
+484047 INFO: Extra DLL search directories (PATH): ['E:\\Projects\\Abdul Sattar Woods\\.venv\\Lib\\site-packages\\PySide6']
+519068 INFO: Warnings written to E:\Projects\Abdul Sattar Woods\build\AbdulSattarWoods\warn-AbdulSattarWoods.txt
+521905 INFO: Graph cross-reference written to E:\Projects\Abdul Sattar Woods\build\AbdulSattarWoods\xref-AbdulSattarWoods.html
+523685 INFO: checking PYZ
+523687 INFO: Building PYZ because PYZ-00.toc is non existent
+523687 INFO: Building PYZ (ZlibArchive) E:\Projects\Abdul Sattar Woods\build\AbdulSattarWoods\PYZ-00.pyz
+552572 INFO: Building PYZ (ZlibArchive) E:\Projects\Abdul Sattar Woods\build\AbdulSattarWoods\PYZ-00.pyz completed successfully.
+553291 INFO: checking PKG
+553291 INFO: Building PKG because PKG-00.toc is non existent
+553306 INFO: Building PKG (CArchive) Abdul Sattar Woods.pkg
+554016 INFO: Building PKG (CArchive) Abdul Sattar Woods.pkg completed successfully.
+554026 INFO: Bootloader E:\Projects\Abdul Sattar Woods\.venv\Lib\site-packages\PyInstaller\bootloader\Windows-64bit-intel\runw.exe
+554026 INFO: checking EXE
+554026 INFO: Building EXE because EXE-00.toc is non existent
+554032 INFO: Building EXE from EXE-00.toc
+554058 INFO: Copying bootloader EXE to E:\Projects\Abdul Sattar Woods\build\AbdulSattarWoods\Abdul Sattar Woods.exe
+555149 INFO: Copying icon to EXE
+555243 INFO: Copying 0 resources to EXE
+555243 INFO: Embedding manifest in EXE
+557264 INFO: Appending PKG archive to EXE
+557936 INFO: Fixing EXE headers
+570513 INFO: Building EXE from EXE-00.toc completed successfully.
+570740 INFO: checking COLLECT
+570740 INFO: Building COLLECT because COLLECT-00.toc is non existent
+570752 INFO: Building COLLECT COLLECT-00.toc
+588851 INFO: Building COLLECT COLLECT-00.toc completed successfully.

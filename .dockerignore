@@ -1,0 +1,15 @@
+# Keep the cloud-API image small: only timber/ is needed.
+.git
+.venv
+mobile
+build
+dist
+tools
+docs
+**/__pycache__
+*.apk
+*.spec
+*.pyc
+*.sqlite
+*.db
+node_modules

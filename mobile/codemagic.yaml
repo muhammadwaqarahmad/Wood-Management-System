@@ -1,0 +1,57 @@
+# Codemagic CI — builds the SAME Flutter code into native apps in the cloud.
+#
+# Why this exists: Apple only allows iOS apps to be COMPILED on macOS. This
+# config runs the iOS build on a cloud Mac (no Mac purchase needed) and the
+# Android build on Linux. One codebase -> native app on both platforms.
+#
+# HOW TO USE (one-time, on your side):
+#   1. Put this repo on GitHub/GitLab/Bitbucket (Codemagic pulls from there).
+#   2. Sign up at codemagic.io (free tier) and add this app.
+#   3. In the app's Environment variables, add:  API_URL = https://<your-api-url>
+#   4. For a REAL iPhone build you can install/publish, connect an Apple
+#      Developer account (App Store Connect integration) so Codemagic can sign
+#      it. Until then, the iOS workflow builds UNSIGNED (verifies it compiles).
+#
+# The Flutter project lives in the `mobile/` subfolder, so every step cd's in.
+
+workflows:
+  android-apk:
+    name: Android APK (installable)
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      vars:
+        API_URL: "https://REPLACE-with-your-api-url"
+    scripts:
+      - name: Pub get
+        script: cd mobile && flutter pub get
+      - name: Build APK
+        script: |
+          cd mobile
+          flutter build apk --release --dart-define=API_URL=$API_URL
+    artifacts:
+      - mobile/build/app/outputs/flutter-apk/*.apk
+
+  ios-iphone:
+    name: iOS (iPhone) — cloud Mac
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      vars:
+        API_URL: "https://REPLACE-with-your-api-url"
+    scripts:
+      - name: Pub get
+        script: cd mobile && flutter pub get
+      # --no-codesign compiles the app to prove it builds. To install on a real
+      # iPhone / TestFlight, connect an Apple Developer account in Codemagic and
+      # remove --no-codesign (add the ios_signing block per Codemagic docs).
+      - name: Build iOS
+        script: |
+          cd mobile
+          flutter build ios --release --no-codesign --dart-define=API_URL=$API_URL
+    artifacts:
+      - mobile/build/ios/iphoneos/*.app

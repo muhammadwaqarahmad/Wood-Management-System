@@ -1,0 +1,44 @@
+name: asw_mobile
+description: Abdul Sattar Woods — mobile app (iOS + Android).
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Localization (English + Urdu, RTL support).
+  flutter_localizations:
+    sdk: flutter
+
+  # State management — modern, compile-safe, fast rebuilds.
+  flutter_riverpod: ^2.5.1
+
+  # Networking — the one request/one answer client to our API.
+  dio: ^5.7.0
+
+  # Cached, background-refreshing data (the "advanced, fast" data layer).
+  # Riverpod's AsyncNotifier handles caching; dio handles transport.
+
+  # Navigation.
+  go_router: ^14.2.7
+
+  # Secure token storage (Keychain on iOS, Keystore on Android).
+  flutter_secure_storage: ^9.2.2
+
+  # Fingerprint / Face unlock (Touch ID / Face ID / Android BiometricPrompt).
+  local_auth: ^2.3.0
+
+  # Money / date formatting, bilingual.
+  intl: ^0.20.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

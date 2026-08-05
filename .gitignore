@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtual environment
+.venv/
+venv/
+
+# Runtime data (db, backups, reports, logs)
+storage/
+
+# Secrets — ALL real env files (deploy/ASW-CLOUD.env, CLIENT-PC.env, MAIN-SERVER.env
+# hold real passwords). Templates named *.env.example are NOT matched, so they stay.
+.env
+*.env
+
+# Local data / dumps
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+
+# Mobile (Flutter) build artifacts — never commit builds
+mobile/build/
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/android/.gradle/
+mobile/ios/Pods/
+*.apk
+*.aab
+
+# Scratch / big binaries
+AbdulSattarWoods.apk
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+
+# IDE / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

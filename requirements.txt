@@ -1,0 +1,30 @@
+# Timber Trading Manager — dependencies
+# Python 3.11+ (tested on 3.12)
+
+# --- UI -------------------------------------------------------
+PyQt6==6.7.1
+PyQt6-Charts==6.7.0           # native Qt charts (Urdu/RTL friendly)
+
+# --- Database / ORM ------------------------------------------
+SQLAlchemy==2.0.36
+alembic==1.14.0               # schema migrations
+psycopg[binary]==3.2.3        # PostgreSQL driver (LAN / production)
+# SQLite needs no driver — built into Python
+
+# --- Reports / export ----------------------------------------
+reportlab==4.2.5              # PDF generation
+openpyxl==3.1.5               # Excel import/export
+arabic-reshaper==3.0.0        # Urdu text shaping for PDFs
+python-bidi==0.6.3            # RTL bidi algorithm for PDFs
+
+# --- Security -------------------------------------------------
+bcrypt==4.2.1                 # password hashing
+
+# --- Config ---------------------------------------------------
+python-dotenv==1.0.1          # load .env
+
+# --- Testing (dev only) --------------------------------------
+pytest==8.3.4
+
+# --- Packaging (dev only) ------------------------------------
+pyinstaller==6.11.1
