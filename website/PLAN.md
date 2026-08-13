@@ -2,7 +2,8 @@
 
 The browser version of **Abdul Sattar Woods**, with the **same functionality as
 the desktop app** (full read & write, every screen), running independently
-against one shared cloud database.
+against one shared cloud database — and built as a **product we intend to sell**
+to other timber businesses (multi-tenant SaaS).
 
 | | |
 |---|---|
@@ -10,6 +11,8 @@ against one shared cloud database.
 | **Access** | read & write |
 | **Data** | one shared cloud database |
 | **Independence** | works without the office PC |
+| **Product** | sellable multi-tenant SaaS |
+| **Mobile** | upgraded to full read & write (same API) |
 
 ---
 
@@ -54,20 +57,41 @@ hosting.
 ```
 
 - **Website & mobile** talk only to the API → independent of the office PC.
+- **Mobile is a full read/write client too** (no longer read-only) — the same
+  API serves it and the website. This is *why* the API-first design wins.
 - **Desktop** connects to the database directly today; it can move onto the API
   later for perfect consistency.
 - One brain = identical numbers everywhere.
 
 ---
 
-## 3. Decisions to lock first
+## 3. Stack & product decisions (locked)
 
-| Decision | Recommendation | Notes |
+Chosen for **the best web-development stack for a product we sell**, not for
+one developer's comfort.
+
+| Decision | Choice | Notes |
 |---|---|---|
-| **Website technology** | **React (Vite or Next.js) + the shared JSON API** | The data-entry screens (Buy & Sell with live totals) are highly interactive, and one JSON API then serves both website *and* mobile. Lighter alternative: **FastAPI + HTMX** (all-Python, fewer moving parts, faster to ship). |
-| **Login & roles** | Reuse the API's JWT login + the desktop's permission model | Admin / Manager / Viewer map straight across; the same rules that gate desktop actions gate the API endpoints. |
-| **Hosting** | API on cloud hosting (Render or similar), website on a static host (Vercel / Netlify / Cloudflare Pages), database on the Postgres you buy | All three always-on and independent of your PC. |
-| **Desktop's data path** | Keep it on a **direct database connection** for now | A cloud DB is slower than the old LAN — pick a **Mumbai region**, and if it still feels heavy, move the desktop onto the API too. |
+| **Web frontend** | **TypeScript + React (Next.js)** | Industry-standard, most hireable, product-grade UX and ecosystem — the right call for something we sell. TypeScript (not plain JS) for long-term maintainability. *React + Vite (SPA)* is the lighter option if marketing pages live separately. |
+| **Backend / API** | **FastAPI (Python) over `timber/core`** | One shared JSON API — full read/write, JWT, auto OpenAPI docs. The accounting engine stays Python: tested, single source of truth, never rewritten in JS. |
+| **Mobile** | **Flutter, upgraded to full read/write** | A first-class client of the same API, no longer read-only. |
+| **Login & roles** | JWT + the desktop's permission model, extended **per organization** | The same rules gate the API for every client. |
+| **Hosting** | API on cloud hosting; web on Vercel / Netlify / Cloudflare; DB on the Postgres you buy | All always-on, independent of the office PC. |
+| **Desktop's data path** | Direct DB connection for now (Mumbai region); can move onto the API later | A cloud DB is slower than the old LAN — batch queries, and move to the API if it feels heavy. |
+
+### Selling it means multi-tenancy — design it in *now*
+
+Going from "our business tool" to "a product other businesses buy" is a
+foundational change that is far cheaper to build in early than to retrofit:
+
+- **Data isolation** — an `org_id` / `tenant_id` on every row (shared DB,
+  cheaper, simpler ops) **or** a database-per-customer (stronger isolation, more
+  ops). This touches the schema and every query, so decide before Phase 1.
+- **Accounts & organizations** — users belong to an organization; the JWT carries
+  the tenant; the permission model extends per-org.
+- **Billing / subscriptions** — later, but the org model should anticipate it.
+
+The current schema is single-business; the tenancy layer is part of Phase 1.
 
 ---
 
@@ -94,12 +118,15 @@ the cloud Postgres, point everything at it, run the migrations, and stand up the
 API deploy with login.
 **Done when:** one live cloud DB, API deploys green, everyone authenticates.
 
-### Phase 1 — Backend to full read & write
+### Phase 1 — Backend to full read & write (+ multi-tenancy)
 Extend the FastAPI over `timber/core` with create / update / void endpoints for
 every entity — trades, payments, expenses, transfers, loans, cheques, parties —
-each guarded by the existing permission rules. Endpoint tests alongside the
-current pytest suite.
-**Done when:** anything the desktop can write, the API can write — safely.
+each guarded by the permission rules, and add the **tenancy layer** (org model +
+`org_id` scoping on data and auth). This same API powers the web *and* the
+upgraded full read/write mobile app. Endpoint tests alongside the current pytest
+suite.
+**Done when:** anything the desktop can write, the API can write — safely, and
+scoped to the right organization.
 
 ### Phase 2 — Web shell
 Login, app layout & navigation, light/dark theme, English + Urdu (with
@@ -163,11 +190,13 @@ public write API, backups, a load test, then deploy behind your own domain.
 
 ## 8. Immediate next steps
 
-1. **Choose the website technology** — React + shared API (recommended) or
-   FastAPI + HTMX.
-2. **Buy the cloud database** — a Mumbai-region PostgreSQL; point the API (and
+1. **Web stack — decided:** TypeScript + React (Next.js) on the FastAPI JSON API.
+2. **Decide multi-tenancy model** — shared DB with `org_id` (recommended to start)
+   vs database-per-customer. Needed before schema work.
+3. **Buy the cloud database** — a Mumbai-region PostgreSQL; point the API (and
    later the desktop) at it.
-3. **Start Phase 1** — extend the API to full read/write, then build the web shell.
+4. **Start Phase 1** — extend the API to full read/write + tenancy, then build the
+   web shell; upgrade the mobile app to full read/write on the same API.
 
 ---
 
