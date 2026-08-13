@@ -1,7 +1,7 @@
-# Always-on cloud API for the mobile app — reads Supabase (the cloud backup DB),
-# so the phones work 24/7 even when the office PC is off.
+# Always-on cloud API for the mobile app + website — reads the online DB, so the
+# clients work 24/7 even when the office PC is off.
 #
-# Build from the REPO ROOT:
+# Build context is the desktop/ project (see render.yaml). From that folder:
 #   docker build -f deploy/cloud-api/Dockerfile -t asw-api .
 # Run:
 #   docker run -p 8000:8000 --env-file deploy/cloud-api/cloud-api.env asw-api

@@ -1,5 +1,7 @@
 # Render Blueprint (must live at repo root so Render auto-detects it).
-# Deploys the always-on cloud API for the mobile app, pointed at Supabase.
+# Deploys the always-on cloud API for the mobile app + website, pointed at the
+# online database. The API source lives under desktop/ (the shared Python
+# project), so the Docker build context is ./desktop.
 #
 # In Render: New + → Blueprint → pick this repo → it reads this file →
 # then set the two SECRET vars (sync:false) in the dashboard → Apply.
@@ -7,8 +9,8 @@ services:
   - type: web
     name: asw-api
     runtime: docker
-    dockerfilePath: ./deploy/cloud-api/Dockerfile
-    dockerContext: .
+    dockerfilePath: ./desktop/deploy/cloud-api/Dockerfile
+    dockerContext: ./desktop
     plan: free            # free = sleeps after ~15 min idle (~50s cold start). "starter" ($7/mo) stays always-on.
     region: singapore
     healthCheckPath: /health
