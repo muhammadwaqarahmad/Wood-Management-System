@@ -46,6 +46,9 @@ build/
 dist/
 *.spec
 
+# Inno Setup output (the built installer .exe — too big for git)
+installer/
+
 # IDE / OS
 .vscode/
 .idea/

@@ -10,7 +10,7 @@
 ; default and AbdulSattarWoods.spec (APP_NAME).
 
 #define AppName "Abdul Sattar Woods"
-#define AppVersion "0.2.1"
+#define AppVersion "0.3.0"
 #define AppExe "Abdul Sattar Woods.exe"
 #define Publisher "Abdul Sattar Woods"
 
