@@ -38,7 +38,10 @@ class BankBookScreen(QWidget):
     def __init__(self, current_user: CurrentUser, parent=None) -> None:
         super().__init__(parent)
         root = QVBoxLayout(self)
-
+        # Side inset so filters / tiles / table sit off the panel's rounded
+        # edge, consistent with the other pages.
+        root.setContentsMargins(22, 8, 22, 14)
+        root.setSpacing(12)
 
         bar = QHBoxLayout()
         bar.addWidget(QLabel(f"{i18n.tr('bank_accounts')}:"))

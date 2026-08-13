@@ -198,7 +198,10 @@ class TradeHistoryScreen(QWidget):
         self.current_user = current_user
         self._ids: list[int] = []
         root = QVBoxLayout(self)
-
+        # Side inset so the filter bar / tiles / table sit off the panel's
+        # rounded edge, consistent with the other pages.
+        root.setContentsMargins(22, 8, 22, 14)
+        root.setSpacing(12)
 
         # --- filter row ---
         filters = QHBoxLayout()
@@ -279,18 +282,13 @@ class TradeHistoryScreen(QWidget):
         actions.add(self.search)
         actions.spacer()
         can_edit = has_permission(current_user.role, Permission.EDIT_TRADE)
-        self.edit_btn = QPushButton(i18n.tr("edit"))
-        self.edit_btn.setStyleSheet(design.btn("ghost"))
-        self.edit_btn.setIcon(icons.icon("pencil", design.c("text"), 15))
-        self.edit_btn.clicked.connect(self._edit)
-        self.edit_btn.setEnabled(can_edit)
-        actions.add(self.edit_btn)
-        self.delete_btn = QPushButton(i18n.tr("delete"))
-        self.delete_btn.setStyleSheet(design.btn("danger"))
-        self.delete_btn.setIcon(icons.icon("trash", "#ffffff", 15))
-        self.delete_btn.clicked.connect(self._delete)
-        self.delete_btn.setEnabled(can_edit)
-        actions.add(self.delete_btn)
+        self.manage_btn = design.manage_button([
+            (i18n.tr("edit"), self._edit, "pencil"),
+            None,
+            (i18n.tr("delete"), self._delete, "trash", "danger"),
+        ], parent=self)
+        self.manage_btn.setEnabled(can_edit)
+        actions.add(self.manage_btn)
         for btn in export_buttons(self, self._build_report, "trades", as_widgets=True):
             actions.add(btn)
         root.addWidget(actions)
@@ -413,6 +411,7 @@ class TradeHistoryScreen(QWidget):
         self.tile_weight.setText(f"{total_muds:g} {i18n.tr('muds')}")
         self.tile_sales.setText(fmt(total_sales))
         self.tile_profit.setText(fmt(total_profit))
-        # Profit tile turns red if the period is a net loss.
+        # Profit tile turns red if the period is a net loss. Keep the value at
+        # 20px to match the shared compact tile (was 21px, slightly off).
         self.tile_profit.setStyleSheet(
-            f"color:{design.amt_color(total_profit)};font-size:21px;font-weight:800;")
+            f"color:{design.amt_color(total_profit)};font-size:20px;font-weight:800;")

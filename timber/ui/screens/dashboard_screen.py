@@ -14,6 +14,7 @@ from datetime import date, timedelta
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
+    QComboBox,
     QDateEdit,
     QFrame,
     QGraphicsDropShadowEffect,
@@ -29,7 +30,7 @@ from PySide6.QtWidgets import (
 from timber import i18n
 from timber.core.current_user import CurrentUser
 from timber.db.engine import SessionLocal
-from timber.ui import icons, theme
+from timber.ui import design, icons, theme
 from timber.ui.segmented import SegmentedControl
 
 # Tone accents for the KPI tiles (kept vivid in both themes).
@@ -103,42 +104,15 @@ def _shadow(w) -> None:
     w.setGraphicsEffect(eff)
 
 
-class _Tile(QFrame):
-    """KPI card: tinted icon chip + label + value, with a coloured accent bar
-    down the leading edge (same language as the Financial Position cards)."""
-
-    def __init__(self, icon_name, label, value, tone, signed=False, plain=False):
-        super().__init__()
-        self.setObjectName("dashTile")
-        accent = TONES.get(tone, TONES["slate"])
-        self.setStyleSheet(
-            "#dashTile{background:" + _c("surface") + ";border-radius:16px;border:1px solid "
-            + _c("border") + ";border-left:4px solid " + accent + ";}")
-        _shadow(self)
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 13, 16, 14)
-        lay.setSpacing(9)
-
-        top = QHBoxLayout(); top.setSpacing(9)
-        chip = QLabel()
-        chip.setFixedSize(32, 32)
-        chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        chip.setStyleSheet(f"background:{_tint(accent, 38)};border-radius:9px;")
-        try:
-            chip.setPixmap(icons.pixmap(icon_name, accent, 17))
-        except Exception:  # noqa: BLE001
-            pass
-        cap = QLabel(label.upper())
-        cap.setStyleSheet(f"color:{_c('muted')};font-size:11px;font-weight:700;letter-spacing:0.6px;")
-        cap.setWordWrap(True)
-        top.addWidget(chip); top.addWidget(cap, 1)
-        lay.addLayout(top)
-
-        text = str(value) if plain else _money(value, 1)
-        col = _amt_color(value) if signed else _c("text")
-        val = QLabel(text)
-        val.setStyleSheet(f"color:{col};font-size:21px;font-weight:800;")
-        lay.addWidget(val)
+def _Tile(icon_name, label, value, tone, signed=False, plain=False) -> QFrame:
+    """A KPI tile — a thin wrapper over the shared ``design.stat_tile`` so every
+    tile in the app is the one component (accent bar + tinted icon chip +
+    value). ``signed`` colours the value green/red; ``plain`` shows it as text."""
+    accent = TONES.get(tone, TONES["slate"])
+    text = str(value) if plain else _money(value, 1)
+    col = _amt_color(value) if signed else _c("text")
+    frame, _val = design.stat_tile(label, accent, icon_name, value=text, value_color=col)
+    return frame
 
 
 class _Card(QFrame):
@@ -157,13 +131,18 @@ class _Card(QFrame):
         head = QHBoxLayout(); head.setSpacing(9)
         if icon_name:
             ic = QLabel()
+            ic.setFixedSize(26, 26)
+            ic.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            ic.setStyleSheet(
+                "border-radius:8px;background:qlineargradient(x1:0,y1:0,x2:1,y2:1,"
+                f"stop:0 {_c('accent')},stop:1 {_tint(_c('accent'), 60)});")
             try:
-                ic.setPixmap(icons.pixmap(icon_name, _c("accent"), 17))
+                ic.setPixmap(icons.pixmap(icon_name, "#ffffff", 15))
             except Exception:  # noqa: BLE001
                 pass
             head.addWidget(ic)
         h = QLabel(title)
-        h.setStyleSheet(f"color:{_c('text')};font-size:14px;font-weight:800;")
+        h.setStyleSheet(f"color:{_c('text')};font-size:15px;font-weight:800;")
         head.addWidget(h); head.addStretch()
         self.box.addLayout(head)
 
@@ -206,8 +185,10 @@ class _BarChart(QWidget):
     def paintEvent(self, event):  # noqa: N802 - Qt override
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        import math
+
         W, H = self.width(), self.height()
-        padL, padB, padT, padR = 56, 26, 26, 10
+        padB, padT, padR = 26, 26, 10
         grid_col = QColor(_c("border"))
         muted = QColor(_c("muted"))
 
@@ -221,28 +202,50 @@ class _BarChart(QWidget):
         vals = [float(row.get(k, 0) or 0) for row in self._data for k in keys]
         maxV = max([1.0] + vals)
         minV = min([0.0] + vals)
+
+        # Round the axis to "nice" round numbers so the full-number ticks read
+        # cleanly (e.g. 400,000 — not 402,999) instead of K/M abbreviations.
+        def _nice(x, round_):
+            if x <= 0:
+                return 1.0
+            exp = math.floor(math.log10(x))
+            f = x / 10 ** exp
+            if round_:
+                nf = 1 if f < 1.5 else 2 if f < 3 else 5 if f < 7 else 10
+            else:
+                nf = 1 if f <= 1 else 2 if f <= 2 else 5 if f <= 5 else 10
+            return nf * 10 ** exp
+
+        step = _nice(_nice(maxV - minV, False) / 4, True)
+        minV = math.floor(minV / step) * step
+        maxV = math.ceil(maxV / step) * step
         span = (maxV - minV) or 1.0
+        nticks = int(round(span / step)) + 1
+
+        # Full-number tick labels, so the gutter must fit the widest one.
+        p.setFont(QFont("", 8))
+        fm = p.fontMetrics()
+        tick_labels = [f"{minV + step * i:,.0f}" for i in range(nticks)]
+        padL = max(fm.horizontalAdvance(t) for t in tick_labels) + 14
 
         def yy(v):
             return padT + (H - padT - padB) * (1 - (v - minV) / span)
 
         lx = padL
-        p.setFont(QFont("", 8))
         for _k, name, color in self._series:
             p.fillRect(lx, padT - 18, 10, 10, QColor(color))
             p.setPen(muted)
             p.drawText(lx + 14, padT - 9, name)
-            lx += 24 + p.fontMetrics().horizontalAdvance(name)
+            lx += 24 + fm.horizontalAdvance(name)
 
-        for i in range(5):
-            tv = minV + span * i / 4
+        for i in range(nticks):
+            tv = minV + step * i
             gy = yy(tv)
             p.setPen(QPen(grid_col, 1))
             p.drawLine(padL, int(gy), W - padR, int(gy))
             p.setPen(muted)
-            av = abs(tv)
-            lab = (f"{tv/1e6:.1f}M" if av >= 1e6 else f"{tv/1e3:.0f}K" if av >= 1e3 else f"{tv:.0f}")
-            p.drawText(0, int(gy) - 6, padL - 8, 12, Qt.AlignmentFlag.AlignRight, lab)
+            p.drawText(0, int(gy) - 6, padL - 8, 12,
+                       Qt.AlignmentFlag.AlignRight, tick_labels[i])
 
         y0 = yy(0)
         p.setPen(QPen(grid_col, 1))
@@ -358,16 +361,22 @@ class DashboardScreen(QWidget):
         outer.setSpacing(0)
 
         bar = QHBoxLayout()
-        # Room above (clear of the page title) and below (clear of the tiles).
-        bar.setContentsMargins(2, 8, 2, 20)
+        # Real side padding so the filter/cards sit inset from the panel edge
+        # (they used to hug the rounded corner at 2px). Room above/below too.
+        bar.setContentsMargins(22, 16, 22, 16)
         bar.setSpacing(9)
-        self.period_seg = SegmentedControl([
-            ("all", _t("all_time"), ""), ("day", _t("today"), ""),
-            ("month", _t("this_month"), ""), ("year", _t("this_year"), ""),
-            ("custom", _t("custom"), ""),
-        ], current="day", compact=True)
-        self.period_seg.changed.connect(self._set_period)
-        bar.addWidget(self.period_seg)
+        # One compact period dropdown (shows the current choice, click to reveal
+        # all), defaulting to Day — consistent with every other page.
+        bar.addWidget(QLabel(_t("period") + ":"))
+        self.period_combo = QComboBox()
+        for key, label in (("all", _t("all_time")), ("day", _t("today")),
+                           ("month", _t("this_month")), ("year", _t("this_year")),
+                           ("custom", _t("custom"))):
+            self.period_combo.addItem(label, key)
+        self.period_combo.setCurrentIndex(self.period_combo.findData("day"))
+        self.period_combo.currentIndexChanged.connect(
+            lambda: self._set_period(self.period_combo.currentData()))
+        bar.addWidget(self.period_combo)
         self._from_edit = QDateEdit(QDate(self._from.year, self._from.month, self._from.day))
         self._to_edit = QDateEdit(QDate(self._to.year, self._to.month, self._to.day))
         for e in (self._from_edit, self._to_edit):
@@ -385,10 +394,11 @@ class DashboardScreen(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setStyleSheet("QScrollArea{background:transparent;}")
+        scroll.setStyleSheet("QScrollArea{background:transparent;border:none;} QScrollArea > QWidget > QWidget{background:transparent;}")
         body = QWidget()
         self.v = QVBoxLayout(body)
-        self.v.setContentsMargins(2, 2, 2, 10)
+        # Match the filter bar's side inset; keep the panel content off the edge.
+        self.v.setContentsMargins(22, 0, 22, 14)
         self.v.setSpacing(20)
         scroll.setWidget(body)
         outer.addWidget(scroll, 1)
@@ -462,7 +472,7 @@ class DashboardScreen(QWidget):
 
         lbl = QLabel(title.upper())
         lbl.setStyleSheet(
-            f"color:{_c('muted')};font-size:11px;font-weight:800;letter-spacing:1.4px;"
+            f"color:{_c('text')};font-size:12px;font-weight:800;letter-spacing:1.0px;"
             "padding:0 0 0 2px;")
         outer.addWidget(lbl)
 

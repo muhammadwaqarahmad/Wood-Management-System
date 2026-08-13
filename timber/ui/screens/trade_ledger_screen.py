@@ -47,6 +47,10 @@ class TradeLedgerScreen(QWidget):
     def __init__(self, current_user: CurrentUser, parent=None) -> None:
         super().__init__(parent)
         self._root = QVBoxLayout(self)
+        # Side inset so filters / cards / table sit off the panel's rounded
+        # edge, consistent with the other pages.
+        self._root.setContentsMargins(22, 8, 22, 14)
+        self._root.setSpacing(12)
 
         bar = QHBoxLayout()
         bar.addWidget(QLabel(f"{i18n.tr('period')}:"))

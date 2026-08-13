@@ -12,10 +12,11 @@ from datetime import date
 from decimal import Decimal
 
 from PySide6.QtCore import QDate, Qt
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
+    QDialog,
     QDoubleSpinBox,
     QHBoxLayout,
     QHeaderView,
@@ -33,24 +34,104 @@ from timber import i18n
 from timber.ui import design
 from timber.core.current_user import CurrentUser
 from timber.core.report_data import ReportData
-from timber.core.split_ledger import factory_split_statement
+from timber.core.split_ledger import (
+    factory_split_statement,
+    set_split_rates,
+    split_rate_map,
+    traded_wood_types,
+)
+from timber.core.weekly_settlement import week_label
 from timber.db.engine import SessionLocal
 from timber.db.models import Party
 from timber.db.models.party import PARTY_FACTORY
 from timber.ui.screens.export_helpers import export_buttons
 from timber.ui.screens.table_utils import autosize_rows, fmt, make_table
 
+
+def _date_cell(e, sep: str = "\n") -> str:
+    """Date shown for a sub-ledger row. Payments show the received date and,
+    the entry (booking) date beneath it. Applies to both trades and payments —
+    the actual date on top, the entry date below (always shown so both dates
+    are visible; they match when a row was entered on its own date)."""
+    if e.booked_date:
+        return f"{e.txn_date}{sep}{i18n.tr('entry_date')}: {e.booked_date}"
+    return str(e.txn_date)
+
+
+def _weekly_status(bal) -> str:
+    """Weekly-side settlement state for a row: 'Settled' when the weekly
+    balance is clear, else the amount still pending — which rolls into the
+    next week (shown with a → arrow)."""
+    if bal == 0:
+        return i18n.tr("settled")
+    if bal > 0:
+        return f"{fmt(bal)} →"   # pending — carries to the next week
+    return fmt(bal)              # advance / overpaid
+
+
 _DIVIDER = QColor("#0f172a")  # bold dark line between the left and right sides
 
 
-def _sum_card(title: str, c1: str, c2: str = "") -> tuple[QWidget, QLabel]:
+def _sum_card(title: str, c1: str, icon: str = "") -> tuple[QWidget, QLabel]:
     """A KPI tile: caption over a large value.
 
     Was a saturated gradient block with white text — the last page still
     drawing its own cards. Now the shared tile, so this ledger matches the
-    Dashboard. ``c1`` becomes the accent bar; ``c2`` is ignored.
+    Dashboard. ``c1`` becomes the accent bar; ``icon`` is the gradient chip.
     """
-    return design.stat_tile(title, c1)
+    return design.stat_tile(title, c1, icon)
+
+
+class _SplitRatesDialog(design.Dialog):
+    """Per-wood split rates for one factory: one editable amount per wood
+    type it has traded. 0 means no split (whole rate stays weekly)."""
+
+    def __init__(self, factory_name, woods, current, parent=None) -> None:
+        super().__init__(i18n.tr("set_split_rates"), "factory",
+                         subtitle=factory_name, parent=parent, width=460)
+        self._spins: dict[int, QDoubleSpinBox] = {}
+
+        hint = QLabel(i18n.tr("split_rate_for_wood"))
+        hint.setWordWrap(True)
+        hint.setStyleSheet(f"color:{design.c('muted')};font-size:11px;")
+        self.body.addWidget(hint)
+
+        if not woods:
+            msg = QLabel(i18n.tr("no_traded_woods"))
+            msg.setWordWrap(True)
+            self.body.addWidget(msg)
+            ok, _cancel = self.buttons(i18n.tr("save"))
+            ok.setEnabled(False)  # nothing to save yet
+            return
+
+        # Compact two-column form: wood name on the left, its rate on the right
+        # (reads far better than a tall stack of captioned inputs).
+        from PySide6.QtWidgets import QFormLayout, QWidget
+        host = QWidget()
+        form = QFormLayout(host)
+        form.setContentsMargins(0, 8, 0, 2)
+        form.setSpacing(9)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        for wid, wname in woods:
+            spin = QDoubleSpinBox()
+            spin.setDecimals(2)
+            spin.setMaximum(1_000_000.0)
+            spin.setGroupSeparatorShown(True)
+            spin.setValue(float(current.get(wid, 0)))
+            spin.setMinimumWidth(160)
+            lbl = QLabel(wname)
+            lbl.setStyleSheet(f"font-weight:600;color:{design.c('text')};")
+            form.addRow(lbl, spin)
+            self._spins[wid] = spin
+        self.body.addWidget(host)
+
+        ok, _cancel = self.buttons(i18n.tr("save"))
+        ok.clicked.connect(self.accept)
+
+    def values(self) -> dict:
+        return {
+            wid: Decimal(str(sp.value())) for wid, sp in self._spins.items()
+        }
 
 
 class FactorySplitLedgerScreen(QWidget):
@@ -62,48 +143,36 @@ class FactorySplitLedgerScreen(QWidget):
         self._statement = None
 
         root = QVBoxLayout(self)
+        # Side inset so controls / cards / table sit off the panel's rounded
+        # edge, consistent with the other pages.
+        root.setContentsMargins(22, 8, 22, 14)
+        root.setSpacing(12)
 
-        # -- controls: factory, split rate, period ----------------------
+        # -- controls: factory picker, a compact "Manage" menu, period ---
+        # The bar stays clean: just the factory search and the period. Every
+        # factory action (add / set split rates / remove) tucks into one
+        # "Manage" dropdown, and each action opens its own dialog.
         bar = QHBoxLayout()
-        bar.setSpacing(8)
-        # Add factory sits FIRST: with no factories enrolled the picker beside
-        # it is empty, so the enrol action is what you actually need here.
-        self.add_factory_btn = QPushButton("+ " + i18n.tr("add_split_factory"))
-        self.add_factory_btn.setStyleSheet(design.btn("primary"))
-        self.add_factory_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.add_factory_btn.clicked.connect(self._add_factory)
-        bar.addWidget(self.add_factory_btn)
+        bar.setSpacing(10)
 
         bar.addWidget(QLabel(i18n.tr("factory")))
-        # Only factories ENROLLED in the split ledger appear here (not every
-        # factory uses two sides). Enrolling is a deliberate one-time action.
-        # Type-to-filter picker, matching Buy & Sell and the other ledgers.
         from timber.ui.searchable import SearchableComboBox
 
         self.factory_combo = SearchableComboBox(i18n.tr("search"))
-        self.factory_combo.setMinimumWidth(200)
+        self.factory_combo.setMinimumWidth(240)
         self.factory_combo.currentIndexChanged.connect(self.refresh)
         bar.addWidget(self.factory_combo)
 
-        bar.addWidget(QLabel(i18n.tr("split_rate")))
-        self.rate_spin = QDoubleSpinBox()
-        self.rate_spin.setDecimals(2)
-        self.rate_spin.setMaximum(1_000_000.0)
-        self.rate_spin.setGroupSeparatorShown(True)
-        bar.addWidget(self.rate_spin)
-        # The rate itself stays editable (Save) — only the factory selection
-        # is one-time.
-        self.save_rate_btn = QPushButton(i18n.tr("save"))
-        self.save_rate_btn.clicked.connect(self._save_rate)
-        bar.addWidget(self.save_rate_btn)
+        self.manage_btn = design.manage_button([
+            (i18n.tr("add_split_factory"), self._add_factory, "plus"),
+            (i18n.tr("set_split_rates"), self._set_rates, "pencil"),
+            None,
+            (i18n.tr("remove_split_factory"), self._remove_factory, "trash", "danger"),
+        ], parent=self)  # added on the far right below
 
-        self.remove_factory_btn = QPushButton(i18n.tr("remove_split_factory"))
-        self.remove_factory_btn.setStyleSheet(design.btn("danger"))
-        self.remove_factory_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.remove_factory_btn.clicked.connect(self._remove_factory)
-        bar.addWidget(self.remove_factory_btn)
-
-        bar.addWidget(QLabel(i18n.tr("period")))
+        bar.addSpacing(18)
+        self.period_label = QLabel(i18n.tr("period"))
+        bar.addWidget(self.period_label)
         self.period_combo = QComboBox()
         for key in ("day", "month", "all", "custom"):
             self.period_combo.addItem(i18n.tr(key), key)
@@ -126,18 +195,21 @@ class FactorySplitLedgerScreen(QWidget):
         bar.addWidget(self.from_edit)
         bar.addWidget(self.to_edit)
         bar.addStretch()
+        bar.addWidget(self.manage_btn)  # Manage sits on the far right
         root.addWidget(design.toolbar_wrap(bar))
 
-        # -- balance cards ----------------------------------------------
-        cards = QHBoxLayout()
+        # -- balance cards (detailed mode) ------------------------------
+        self.detail_cards = QWidget()
+        cards = QHBoxLayout(self.detail_cards)
+        cards.setContentsMargins(0, 0, 0, 0)
         cards.setSpacing(10)
-        left_box, self.left_val = _sum_card(i18n.tr("left_balance"), "#2563eb", "#1e40af")
-        right_box, self.right_val = _sum_card(i18n.tr("right_balance"), "#7c3aed", "#5b21b6")
-        total_box, self.total_val = _sum_card(i18n.tr("combined_balance"), "#0d9488", "#0f766e")
+        left_box, self.left_val = _sum_card(i18n.tr("left_balance"), "#2563eb", "calendar-clock")
+        right_box, self.right_val = _sum_card(i18n.tr("right_balance"), "#7c3aed", "wallet")
+        total_box, self.total_val = _sum_card(i18n.tr("combined_balance"), "#0d9488", "pie-chart")
         cards.addWidget(left_box, 1)
         cards.addWidget(right_box, 1)
         cards.addWidget(total_box, 1)
-        root.addLayout(cards)
+        root.addWidget(self.detail_cards)
 
         self.hint = QLabel(i18n.tr("no_split_rate_hint"))
         self.hint.setStyleSheet("color: #d97706; font-weight: 600;")
@@ -145,17 +217,18 @@ class FactorySplitLedgerScreen(QWidget):
         root.addWidget(self.hint)
 
         # -- the two-sided table ------------------------------------------
-        # Shared columns, the LEFT (weekly) block (payment shows its route
-        # under the amount, then a narrow wrapping Reference column), a thin
-        # bold divider, and the RIGHT (regular) block.
-        self._ref_col = 10
-        self._div_col = 12
+        # A "Week" column after the date, the LEFT (weekly) block ending in a
+        # "Weekly status" column (Settled / amount pending → next week), a thin
+        # bold divider, then the RIGHT (regular) block. Payments show only their
+        # amount; there is no Reference column.
+        self._status_col = 12
+        self._div_col = 13
         headers = [
-            i18n.tr("date"), i18n.tr("vehicle"), i18n.tr("wood"),
+            i18n.tr("date"), i18n.tr("week"), i18n.tr("vehicle"), i18n.tr("wood"),
             # left (weekly) block
             i18n.tr("rate"), i18n.tr("weight"), "Kg",
             i18n.tr("total"), i18n.tr("freight"), i18n.tr("sale"),
-            i18n.tr("payment"), i18n.tr("reference"), i18n.tr("balance"),
+            i18n.tr("payment"), i18n.tr("balance"), i18n.tr("weekly_status"),
             "",  # hairline divider
             # right (regular) block
             i18n.tr("rate"), i18n.tr("weight"), "Kg",
@@ -164,25 +237,25 @@ class FactorySplitLedgerScreen(QWidget):
         self.table = make_table(headers)
         self.table.setWordWrap(True)
         hdr = self.table.horizontalHeader()
-        # Everything fits on one page: wide money columns stretch to share
-        # the space, narrow fact columns get small fixed widths, long text
-        # (payment routes, references) wraps onto extra lines instead.
+        # Everything fits on one page: wide money columns stretch to share the
+        # space, narrow fact columns get small fixed widths.
         hdr.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         hdr.setMinimumSectionSize(5)   # let the divider be a thin dark line
         fixed = {
-            0: 76,                 # date
-            1: 62,                 # vehicle
-            3: 52, 13: 52,         # rates
-            4: 64, 14: 64,         # weights ("Weight" header must fit)
-            5: 48, 15: 48,         # kg
-            self._ref_col: 84,     # reference (wraps)
+            0: 132,                # date (fits the "Entry date: <date>" 2nd line)
+            1: 58,                 # week (e.g. "15–21")
+            2: 62,                 # vehicle
+            4: 52, 14: 52,         # rates
+            5: 64, 15: 64,         # weights ("Weight" header must fit)
+            6: 48, 16: 48,         # kg
+            self._status_col: 96,  # weekly status (Settled / amount →)
             self._div_col: 6,      # divider (bold dark line)
         }
         for col, width in fixed.items():
             hdr.setSectionResizeMode(col, QHeaderView.ResizeMode.Fixed)
             self.table.setColumnWidth(col, width)
         root.addWidget(self.table)
-
+        # Detailed ledger export (also drives the top-right page toolbar).
         root.addLayout(export_buttons(self, self._build_report, "factory_sub_ledger"))
 
         self.refresh_factories()
@@ -234,14 +307,14 @@ class FactorySplitLedgerScreen(QWidget):
         self.hint.setText(
             i18n.tr("no_split_factory_hint") if empty else i18n.tr("no_split_rate_hint")
         )
-        self.rate_spin.setEnabled(not empty)
-        self.save_rate_btn.setEnabled(not empty)
         self.refresh()
 
     def _add_factory(self) -> None:
         """One-time enrollment: pick a factory not yet in the split ledger.
         The split rate is set afterwards from the main bar."""
-        from PySide6.QtWidgets import QComboBox as _Combo, QDialog
+        from PySide6.QtWidgets import QDialog
+
+        from timber.ui.searchable import SearchableComboBox
 
         with SessionLocal() as session:
             available = [
@@ -262,9 +335,12 @@ class FactorySplitLedgerScreen(QWidget):
 
         dlg = design.Dialog(i18n.tr("add_split_factory"), "factory",
                             parent=self, width=460)
-        combo = _Combo()
+        # Type-to-filter picker (matches the main factory picker) — easier when
+        # there are many factories to choose from.
+        combo = SearchableComboBox(i18n.tr("search"))
         for pid, name in available:
             combo.addItem(name, pid)
+        combo.setCurrentIndex(-1)
         dlg.field(i18n.tr("factory"), combo)
         ok, _cancel = dlg.buttons(i18n.tr("save"))
         ok.clicked.connect(dlg.accept)
@@ -279,19 +355,23 @@ class FactorySplitLedgerScreen(QWidget):
             info_toast(self, i18n.tr("done_ok"), i18n.tr("done_ok"))
         self.refresh_factories(select_id=pid)
 
-    def _save_rate(self) -> None:
+    def _set_rates(self) -> None:
+        """Open the per-wood split-rate editor for the selected factory."""
         pid = self.factory_combo.currentData()
         if not pid:
+            info_toast(self, i18n.tr("set_split_rates"), i18n.tr("select_item"))
+            return
+        name = self.factory_combo.currentText()
+        with SessionLocal() as session:
+            woods = traded_wood_types(session, pid)
+            current = split_rate_map(session, pid)
+        dlg = _SplitRatesDialog(name, woods, current, parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         with SessionLocal() as session:
-            party = session.get(Party, pid)
-            # Enrolment is split_rate IS NOT NULL; 0 means "enrolled, no rate
-            # set yet". The old ``value() or None`` turned a saved rate of 0
-            # back into NULL, silently dropping the factory OUT of the split
-            # ledger. Enrolment now ends only via "Remove from split ledger".
-            party.split_rate = Decimal(str(self.rate_spin.value()))
+            set_split_rates(session, pid, dlg.values())
             session.commit()
-            info_toast(self, i18n.tr("done_ok"), i18n.tr("done_ok"))
+        info_toast(self, i18n.tr("done_ok"), i18n.tr("done_ok"))
         self.refresh()
 
     def _remove_factory(self) -> None:
@@ -321,55 +401,71 @@ class FactorySplitLedgerScreen(QWidget):
                 v.setText("—")
             self.hint.setVisible(True)  # "add a factory to the split ledger"
             return
+        self._refresh_detailed(pid)
+
+    def _refresh_detailed(self, pid: int) -> None:
         start, end = self._range()
         with SessionLocal() as session:
             st = factory_split_statement(session, pid, start, end)
+            has_rates = bool(split_rate_map(session, pid))
         self._statement = st
-        self.rate_spin.setValue(float(st.split_rate))
-        self.hint.setVisible(st.split_rate <= 0)
+        # Hint appears until at least one wood type has a split rate configured.
+        self.hint.setVisible(not has_rates)
 
         self.left_val.setText(fmt(st.closing_left))
         self.right_val.setText(fmt(st.closing_right))
         self.total_val.setText(fmt(st.closing_total))
 
-        def _pay_cell(amount, route: str) -> str:
-            """Payment amount with its route (bank → bank / Cash) below."""
-            if not amount:
-                return ""
-            return f"{fmt(amount)}\n{route}" if route else fmt(amount)
+        def _pay_cell(amount) -> str:
+            """Just the payment amount — no bank route/account shown."""
+            return fmt(amount) if amount else ""
+
+        # Settled / not-settled highlight colors for the weekly-status column.
+        from timber.ui import theme as _theme
+        _dark = _theme.get_theme() == "dark"
+        _c_settled = "#34d399" if _dark else "#059669"   # green
+        _c_pending = "#fb7185" if _dark else "#e11d48"   # red
 
         self.table.setRowCount(len(st.entries))
         for r, e in enumerate(st.entries):
+            wk = week_label(e.txn_date)
+            status = _weekly_status(e.left_balance)
             if e.kind == "load":
                 values = [
-                    str(e.txn_date), e.vehicle, e.wood,
+                    _date_cell(e), wk, e.vehicle, e.wood,
                     fmt(e.left_rate), f"{e.weight:,.2f}", f"{e.kg:,.0f}",
                     fmt(e.left_total),
                     fmt(e.freight) if e.freight else "",
-                    fmt(e.left_net), "", "", fmt(e.left_balance),
+                    fmt(e.left_net), "", fmt(e.left_balance), status,
                     "",
                     fmt(e.right_rate), f"{e.weight:,.2f}", f"{e.kg:,.0f}",
                     fmt(e.right_amount), "", fmt(e.right_balance),
                 ]
             else:
                 values = [
-                    str(e.txn_date), "", "",
+                    _date_cell(e), wk, "", "",
                     "", "", "", "", "", "",
-                    _pay_cell(e.left_payment, e.detail),
-                    e.ref, fmt(e.left_balance),
+                    _pay_cell(e.left_payment), fmt(e.left_balance), status,
                     "",
                     "", "", "", "",
-                    _pay_cell(e.right_payment, e.detail),
+                    _pay_cell(e.right_payment),
                     fmt(e.right_balance),
                 ]
             for c, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
-                if c >= 3 and c not in (self._ref_col, self._div_col):
+                # Cols 0-3 (date, week, vehicle, wood) read left; money right.
+                # The weekly-status column is text, so keep it left too.
+                if c >= 4 and c not in (self._div_col, self._status_col):
                     item.setTextAlignment(
                         Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                     )
                 if c == self._div_col:
                     item.setBackground(_DIVIDER)
+                # Highlight the weekly settlement status: green = settled,
+                # red = still owing (that amount rolls to the next week).
+                if c == self._status_col and value:
+                    item.setForeground(QBrush(QColor(
+                        _c_settled if e.left_balance == 0 else _c_pending)))
                 self.table.setItem(r, c, item)
         # This table builds its items by hand, so it uses the standalone
         # sizer rather than fill_table's inline pass.
@@ -377,52 +473,52 @@ class FactorySplitLedgerScreen(QWidget):
 
     # -- export -----------------------------------------------------------
     def _build_report(self) -> ReportData:
+        """The detailed two-sided ledger export (top-right toolbar)."""
         st = self._statement
         if st is None:
             raise ValueError("Nothing to export.")
         headers = [
-            i18n.tr("date"), i18n.tr("vehicle"), i18n.tr("wood"),
+            i18n.tr("date"), i18n.tr("week"), i18n.tr("vehicle"), i18n.tr("wood"),
             f"{i18n.tr('weekly_side')} — {i18n.tr('rate')}",
             i18n.tr("weight"), "Kg",
             i18n.tr("total"), i18n.tr("freight"), i18n.tr("sale"),
-            i18n.tr("payment"), i18n.tr("reference"), i18n.tr("balance"),
+            i18n.tr("payment"), i18n.tr("balance"), i18n.tr("weekly_status"),
             f"{i18n.tr('irregular_side')} — {i18n.tr('rate')}",
             i18n.tr("weight"), "Kg", i18n.tr("total"),
             i18n.tr("payment"), i18n.tr("balance"),
         ]
 
-        def _pay(amount, route: str) -> str:
-            if not amount:
-                return ""
-            return f"{fmt(amount)} {route}".strip() if route else fmt(amount)
+        def _pay(amount) -> str:
+            return fmt(amount) if amount else ""
 
         rows = []
         for e in st.entries:
+            wk = week_label(e.txn_date)
+            status = _weekly_status(e.left_balance)
             if e.kind == "load":
                 rows.append([
-                    str(e.txn_date), e.vehicle, e.wood,
+                    _date_cell(e, " · "), wk, e.vehicle, e.wood,
                     fmt(e.left_rate), f"{e.weight:,.2f}", f"{e.kg:,.0f}",
                     fmt(e.left_total),
                     fmt(e.freight) if e.freight else "",
-                    fmt(e.left_net), "", "", fmt(e.left_balance),
+                    fmt(e.left_net), "", fmt(e.left_balance), status,
                     fmt(e.right_rate), f"{e.weight:,.2f}", f"{e.kg:,.0f}",
                     fmt(e.right_amount), "", fmt(e.right_balance),
                 ])
             else:
                 rows.append([
-                    str(e.txn_date), "", "",
+                    _date_cell(e, " · "), wk, "", "",
                     "", "", "", "", "", "",
-                    _pay(e.left_payment, e.detail), e.ref,
-                    fmt(e.left_balance),
+                    _pay(e.left_payment), fmt(e.left_balance), status,
                     "", "", "", "",
-                    _pay(e.right_payment, e.detail),
+                    _pay(e.right_payment),
                     fmt(e.right_balance),
                 ])
         return ReportData(
             title=f"{i18n.tr('factory_sub_ledger')} — {st.factory_name}",
             headers=headers,
             rows=rows,
-            divider_after=11,  # bold line between the left (weekly) & right sides
+            divider_after=12,  # bold line between the left (weekly) & right sides
             summary=[
                 (i18n.tr("left_balance"), fmt(st.closing_left)),
                 (i18n.tr("right_balance"), fmt(st.closing_right)),

@@ -80,16 +80,41 @@ _METHODS = [
 
 
 class _PaymentEditDialog(design.Dialog):
-    """Edit an existing payment (party stays the same)."""
+    """Edit an existing payment — every field, including the party."""
 
-    def __init__(self, accounts, party_banks, data, party_type, parent=None) -> None:
+    def __init__(self, accounts, party_banks, parties, split_factory_ids, data,
+                 party_type, parent=None) -> None:
         super().__init__(i18n.tr("edit"), "wallet", parent=parent, width=520)
+        self.party_type = party_type
+        self._split_factory_ids = set(split_factory_ids or ())
+
+        # Party picker — lets a payment saved against the wrong supplier/factory
+        # be moved to the right one (was previously fixed).
+        from timber.ui.searchable import SearchableComboBox
+        self.party_combo = SearchableComboBox(i18n.tr("search"))
+        for _pid, _pname in parties:
+            self.party_combo.addItem(_pname, _pid)
+        _pidx = self.party_combo.findData(data.get("party_id"))
+        if _pidx >= 0:
+            self.party_combo.setCurrentIndex(_pidx)
+        self.field(i18n.tr("name"), self.party_combo)
+
+        # Received date drives the ledger / which week it settles.
         self.date_edit = QDateEdit()
         self.date_edit.setCalendarPopup(True)
         self.date_edit.setDisplayFormat("yyyy-MM-dd")
         d = data["txn_date"]
         self.date_edit.setDate(QDate(d.year, d.month, d.day))
-        self.field(i18n.tr("date"), self.date_edit)
+        self.field(i18n.tr("received_date"), self.date_edit,
+                   hint=i18n.tr("received_date_hint"))
+
+        # Entry date = when it was actually booked (audit only).
+        self.entry_date_edit = QDateEdit()
+        self.entry_date_edit.setCalendarPopup(True)
+        self.entry_date_edit.setDisplayFormat("yyyy-MM-dd")
+        ed = data.get("entry_date") or data["txn_date"]
+        self.entry_date_edit.setDate(QDate(ed.year, ed.month, ed.day))
+        self.field(i18n.tr("entry_date"), self.entry_date_edit)
 
         # Direction is editable here too — otherwise a payment entered the
         # wrong way round could only be fixed by voiding and re-entering it.
@@ -141,12 +166,43 @@ class _PaymentEditDialog(design.Dialog):
         self.notes_edit = QLineEdit(data["notes"])
         self.field(i18n.tr("notes"), self.notes_edit)
 
+        # Factory split sub-ledger side — shown ONLY for a factory that uses the
+        # weekly/irregular split (same rule as new entry); hidden otherwise.
+        self.side_combo = QComboBox()
+        self.side_combo.addItem(i18n.tr("side_left"), "left")
+        self.side_combo.addItem(i18n.tr("side_right"), "right")
+        si = self.side_combo.findData(data.get("split_side"))
+        if si >= 0:
+            self.side_combo.setCurrentIndex(si)
+        self._side_box = QWidget()
+        _sbox = QVBoxLayout(self._side_box)
+        _sbox.setContentsMargins(0, 0, 0, 0)
+        _sbox.setSpacing(5)
+        _sbox.addWidget(design.field_label(i18n.tr("split_side")))
+        _sbox.addWidget(self.side_combo)
+        self.body.addWidget(self._side_box)
+        self._update_side_visibility()
+        self.party_combo.currentIndexChanged.connect(
+            lambda *_: self._update_side_visibility())
+
+        # Changing the party makes the old party's bank account irrelevant, so
+        # reset that field to "—" when the party is switched.
+        self.party_combo.currentIndexChanged.connect(
+            lambda *_: self.party_bank_combo.setCurrentIndex(0))
+
         ok, _cancel = self.buttons(i18n.tr("save"))
         ok.clicked.connect(self.accept)
 
+    def _update_side_visibility(self) -> None:
+        show = (self.party_type == PARTY_FACTORY
+                and self.party_combo.currentData() in self._split_factory_ids)
+        self._side_box.setVisible(show)
+
     def values(self) -> dict:
         return dict(
+            party_id=self.party_combo.currentData(),
             txn_date=self.date_edit.date().toPython(),
+            entry_date=self.entry_date_edit.date().toPython(),
             direction=self.dir_seg.current(),
             amount=self.amount_spin.value(),
             method=self.method_combo.currentData(),
@@ -154,6 +210,8 @@ class _PaymentEditDialog(design.Dialog):
             party_bank_id=self.party_bank_combo.currentData(),
             reference_no=self.reference_edit.text().strip(),
             notes=self.notes_edit.text().strip(),
+            split_side=(self.side_combo.currentData()
+                        if self._side_box.isVisible() else None),
         )
 
 
@@ -174,6 +232,9 @@ class PaymentPanel(QWidget):
         content = QWidget()
         scroll.setWidget(content)
         root = QVBoxLayout(content)
+        # The parent screen supplies the side inset; keep this body flush so the
+        # tab bar and the panel content line up.
+        root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(12)
 
         # ===== Record payment (form) =====
@@ -205,10 +266,16 @@ class PaymentPanel(QWidget):
         self.balance_label = QLabel("—")
         self.balance_label.setStyleSheet(
             f"font-size:16px;font-weight:800;color:{design.c('accent')};")
+        # Received date drives the ledger / which week the payment settles.
         self.date_edit = QDateEdit()
         self.date_edit.setCalendarPopup(True)
         self.date_edit.setDate(QDate.currentDate())
         self.date_edit.setDisplayFormat("yyyy-MM-dd")
+        # Entry date = when it was booked (audit only); defaults to today.
+        self.entry_date_edit = QDateEdit()
+        self.entry_date_edit.setCalendarPopup(True)
+        self.entry_date_edit.setDate(QDate.currentDate())
+        self.entry_date_edit.setDisplayFormat("yyyy-MM-dd")
         self.amount_spin = QDoubleSpinBox()
         self.amount_spin.setDecimals(2)
         self.amount_spin.setMaximum(1_000_000_000.0)
@@ -274,7 +341,8 @@ class PaymentPanel(QWidget):
         party_box = QGroupBox(i18n.tr(party_type))
         left_form = QFormLayout(party_box)
         left_form.setVerticalSpacing(10)
-        left_form.addRow(i18n.tr("date"), self.date_edit)
+        left_form.addRow(i18n.tr("received_date"), self.date_edit)
+        left_form.addRow(i18n.tr("entry_date"), self.entry_date_edit)
         left_form.addRow(i18n.tr("name"), self.party_combo)
         left_form.addRow(i18n.tr("current_balance"), self.balance_label)
         party_acc_label = f"{i18n.tr(party_type)} {i18n.tr('account')}"
@@ -539,9 +607,10 @@ class PaymentPanel(QWidget):
             loads = party_outstanding_loads(session, party_id)
             party = session.get(_Party, party_id)
             banks = [(b.id, party_bank_label(b)) for b in party.banks]
-            split_rate = party.split_rate or 0
-        # Side selector only for factories that use the split sub-ledger.
-        show_side = self.party_type == PARTY_FACTORY and split_rate > 0
+            enrolled_split = party.split_rate is not None
+        # Side selector only for factories enrolled in the split sub-ledger
+        # (per-wood rates live on the sub-ledger screen; enrolment is the flag).
+        show_side = self.party_type == PARTY_FACTORY and enrolled_split
         self._side_label.setVisible(show_side)
         self.side_combo.setVisible(show_side)
         # Populate the party's own accounts (— = none).
@@ -628,6 +697,7 @@ class PaymentPanel(QWidget):
                 payment = create_payment(
                     session,
                     txn_date=self.date_edit.date().toPython(),
+                    entry_date=self.entry_date_edit.date().toPython(),
                     party_id=self.party_combo.currentData(),
                     amount=self.amount_spin.value(),
                     method=method,
@@ -684,16 +754,36 @@ class PaymentPanel(QWidget):
             ]
             party = session.get(Party, payment.party_id)
             party_banks = [(b.id, party_bank_label(b)) for b in party.banks]
+            parties = [
+                (p.id, p.name) for p in session.scalars(
+                    select(Party).where(
+                        Party.party_type == self.party_type,
+                        Party.is_active.is_(True),
+                    ).order_by(Party.name)
+                )
+            ]
+            # Factories that use the weekly/irregular split — the side selector
+            # is shown only for these (same rule as new entry).
+            split_factory_ids = set(session.scalars(
+                select(Party.id).where(
+                    Party.party_type == PARTY_FACTORY,
+                    Party.split_rate.is_not(None))
+            )) if self.party_type == PARTY_FACTORY else set()
             data = dict(
-                txn_date=payment.txn_date, amount=float(payment.amount),
+                party_id=payment.party_id,
+                txn_date=payment.txn_date,
+                entry_date=payment.entry_date,
+                amount=float(payment.amount),
                 direction=payment.direction,
                 method=payment.method, bank_account_id=payment.bank_account_id,
                 party_bank_id=payment.party_bank_id,
                 reference_no=payment.reference_no or "",
                 notes=payment.notes or "",
+                split_side=payment.split_side,
             )
         dialog = _PaymentEditDialog(
-            accounts, party_banks, data, self.party_type, parent=self
+            accounts, party_banks, parties, split_factory_ids, data,
+            self.party_type, parent=self
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -742,7 +832,9 @@ class PaymentEntryScreen(QWidget):
         self.current_user = current_user
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
+        # Side inset so the tab bar + panels sit off the panel's rounded edge,
+        # consistent with the Dashboard / Reports / Bank pages.
+        root.setContentsMargins(22, 8, 22, 14)
         root.setSpacing(12)
 
         from timber.ui.screens.unknown_payment_panel import UnknownPaymentPanel

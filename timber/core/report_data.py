@@ -36,12 +36,15 @@ def _fmt(value) -> str:
 @dataclass
 class ReportSection:
     """A sub-table inside a report, with its own heading. ``bold_rows``
-    are indexes of result rows (rendered bold on a tinted background)."""
+    are indexes of result rows (rendered bold on a tinted background).
+    ``divider_after`` draws a bold vertical line after that column index
+    (e.g. the middle line of a two-sided Receivable | Giveable table)."""
 
     title: str
     headers: list[str]
     rows: list[list[str]]
     bold_rows: list[int] = field(default_factory=list)
+    divider_after: int | None = None
 
 
 @dataclass
@@ -139,8 +142,13 @@ def detailed_statement_report(
     for e in st.entries:  # oldest first, newest at the bottom
         kind = i18n.tr("load") if e.kind == "load" else i18n.tr("payment")
         detail = e.expenses if e.kind == "load" else e.payment_detail
+        # For a back-dated payment (received one day, booked another), note the
+        # entry date next to its route so both dates are visible in the export.
+        if e.kind == "payment" and e.booked_date and e.booked_date != e.entry_date:
+            note = f"{i18n.tr('entry_date')}: {e.booked_date}"
+            detail = f"{detail} · {note}" if detail else note
         rows.append([
-            str(e.entry_date), kind, e.counterparty, e.vehicle, e.wood,
+            f"{e.entry_date} {e.time}".strip(), kind, e.counterparty, e.vehicle, e.wood,
             e.weight_text,
             _fmt(e.rate) if e.kind == "load" else "",
             _fmt(-e.freight) if e.kind == "load" and e.freight else "",
@@ -359,15 +367,99 @@ def bank_statement_report(
     return ReportData(title, headers, rows, summary)
 
 
-def daily_book_report(session: Session, day: date) -> ReportData:
-    entries = daily_book(session, day)
+def bank_balances_report(session: Session) -> ReportData:
+    """Every bank account with its current available balance — mirrors the
+    Bank Accounts screen (active + inactive rows), with the total available
+    (active accounts only, like the screen's Cash-position tile) as the
+    summary, so the PDF/Excel matches exactly what is on screen."""
+    from timber.core import bank_service
+
+    balances = bank_service.all_balances(session, active_only=False)
+    total = bank_service.total_cash_position(session, balances)
     headers = [
+        i18n.tr("name"), i18n.tr("bank_name"), i18n.tr("account_number"),
+        i18n.tr("branch"), i18n.tr("available_balance"),
+    ]
+    rows = [
+        [b.name, b.bank_name or "", b.account_number or "", b.branch or "",
+         _fmt(b.closing)]
+        for b in balances
+    ]
+    summary = [(i18n.tr("total_available"), _fmt(total))]
+    return ReportData(i18n.tr("bank_balances"), headers, rows, summary)
+
+
+def all_bank_books_report(
+    session: Session, start: date | None = None, end: date | None = None
+) -> ReportData:
+    """The Bank Accounts page export: every account's bank book (date, opening,
+    money-in, money-out, closing) one section after another — like the Bank Book
+    page but covering all accounts at once. Balances live in Financial Position,
+    so this page exports the movements instead."""
+    from timber.core import bank_service
+    from timber.core.bank_ledger import bank_daily_book
+
+    headers = [
+        i18n.tr("date"), i18n.tr("opening"), i18n.tr("money_in"),
+        i18n.tr("money_out"), i18n.tr("closing"),
+    ]
+    sections: list[ReportSection] = []
+    for a in bank_service.all_balances(session, active_only=False):
+        book = bank_daily_book(session, a.id, start, end)
+        if not book.rows:
+            continue  # skip accounts with no movements in the period
+        rows = [
+            [str(r.day), _fmt(r.opening), _fmt(r.money_in), _fmt(r.money_out),
+             _fmt(r.closing)]
+            for r in book.rows
+        ]
+        closing = book.rows[-1].closing
+        sections.append(ReportSection(
+            f"{a.name}  ({i18n.tr('closing')}: {_fmt(closing)})", headers, rows))
+    title = i18n.tr("bank_book") + _period_suffix(start, end)
+    return ReportData(title, [], [], sections=sections)
+
+
+def weekly_settlement_report(
+    session: Session, factory_id: int, year: int, month: int
+) -> ReportData:
+    """A factory's weekly (left) side cleared week by week for one month:
+    carried-in + charged − paid = carried-forward, unpaid rolling onward."""
+    import calendar
+
+    from timber.core.weekly_settlement import weekly_settlement
+
+    ws = weekly_settlement(session, factory_id, year, month)
+    headers = [
+        i18n.tr("week"), i18n.tr("carried_in"), i18n.tr("charged"),
+        i18n.tr("paid"), i18n.tr("carried_forward"),
+    ]
+    rows = [
+        [w.label, _fmt(w.carried_in), _fmt(w.charged), _fmt(w.paid),
+         _fmt(w.carried_out)]
+        for w in ws.weeks
+    ]
+    period = f"{calendar.month_abbr[month]} {year}"
+    title = f"{i18n.tr('weekly_settlement')} — {ws.factory_name} ({period})"
+    summary = [
+        (i18n.tr("opening"), _fmt(ws.opening)),
+        (i18n.tr("charged"), _fmt(ws.total_charged)),
+        (i18n.tr("paid"), _fmt(ws.total_paid)),
+        (i18n.tr("closing"), _fmt(ws.closing)),
+    ]
+    return ReportData(title, headers, rows, summary)
+
+
+def daily_book_report(session: Session, day: date) -> ReportData:
+    entries = daily_book(session, day)  # chronological (by entry time)
+    headers = [
+        i18n.tr("time"),
         i18n.tr("kind"),
         i18n.tr("party"),
         i18n.tr("detail"),
         i18n.tr("amount"),
     ]
-    rows = [[e.kind, e.party_name, e.detail, _fmt(e.amount)] for e in entries]
+    rows = [[e.time, e.kind, e.party_name, e.detail, _fmt(e.amount)] for e in entries]
     return ReportData(f"{i18n.tr('daily_book')} — {day}", headers, rows)
 
 
@@ -509,3 +601,142 @@ def party_performance_report(
         rows.append(row)
     title = i18n.tr("factories") if is_factory else i18n.tr("suppliers")
     return ReportData(title + _period_suffix(start, end), headers, rows, tiles=tiles)
+
+
+def _receivable_payable_section(session: Session) -> ReportSection:
+    """Receivable (money owed TO us) on the LEFT, Giveable (money we owe) on the
+    RIGHT, separated by a middle divider line. Each side is grouped into
+    subsections — Factories / Suppliers / Loans — with a bold heading and a
+    subtotal, so the whole picture fits compactly on one page."""
+    from timber.core.position import financial_position
+
+    pos = financial_position(session)
+    # NB: PositionParty.kind is "supplier" / "factory" / "loan" (see
+    # position.py). Using "bapari" here silently dropped every supplier — which
+    # emptied the whole "To give" side (all payables are suppliers).
+    kind_label = {
+        "factory": i18n.tr("factories"),
+        "supplier": i18n.tr("suppliers"),
+        "loan": i18n.tr("loans"),
+    }
+
+    def side(items):
+        """Flatten one side into (label, mobile, amount) lines + heading rows."""
+        groups: dict[str, list] = {}
+        for it in items:
+            groups.setdefault(it.kind, []).append(it)
+        lines, heads = [], []
+        for kind in ("factory", "supplier", "loan"):
+            grp = groups.get(kind)
+            if not grp:
+                continue
+            heads.append(len(lines))                      # subsection heading row
+            lines.append((kind_label.get(kind, kind), "", ""))
+            sub = Decimal("0")
+            for it in grp:
+                lines.append((it.name, it.contact, _fmt(it.amount)))
+                sub += it.amount
+            heads.append(len(lines))                      # subtotal row (bold too)
+            lines.append((f"  {i18n.tr('subtotal')}", "", _fmt(sub)))
+        return lines, set(heads)
+
+    recv, recv_h = side(pos.receivables)
+    give, give_h = side(pos.payables)
+    headers = [
+        i18n.tr("to_receive"), i18n.tr("mobile"), i18n.tr("amount"),
+        i18n.tr("to_give"), i18n.tr("mobile"), i18n.tr("amount"),
+    ]
+    rows, bold = [], []
+    for i in range(max(len(recv), len(give))):
+        left = recv[i] if i < len(recv) else ("", "", "")
+        right = give[i] if i < len(give) else ("", "", "")
+        rows.append([left[0], left[1], left[2], right[0], right[1], right[2]])
+        if i in recv_h or i in give_h:
+            bold.append(i)
+    return ReportSection(
+        f"{i18n.tr('to_receive')}  |  {i18n.tr('to_give')}",
+        headers, rows, bold_rows=bold, divider_after=2)
+
+
+def reports_combined_report(
+    session: Session, selected, start=None, end=None
+) -> ReportData:
+    """The Reports page's selectable export. ``selected`` is any subset of
+    {"cashflow", "factory", "supplier"}.
+
+    * Exactly one section -> that section's native report (same as the desktop).
+    * Multiple -> each section stacked in its own DESKTOP table format.
+
+    (The two-column Receivable | Giveable directory lives on the Financial
+    Position page — see ``financial_position_report``.)
+    """
+    from timber.db.models.party import PARTY_BAPARI, PARTY_FACTORY
+
+    order = ("cashflow", "factory", "supplier")
+    sel = [s for s in order if s in selected]
+
+    # A single section exports exactly like that page already does.
+    if sel == ["cashflow"]:
+        return cashflow_statement_report(session, start, end)
+    if sel == ["factory"]:
+        return party_performance_report(session, PARTY_FACTORY, start, end)
+    if sel == ["supplier"]:
+        return party_performance_report(session, PARTY_BAPARI, start, end)
+
+    sections: list[ReportSection] = []
+    hero = None
+    titles: list[str] = []
+    if "cashflow" in sel:
+        cf = cashflow_statement_report(session, start, end)
+        sections += cf.sections
+        hero = cf.hero
+        titles.append(i18n.tr("cash_flow"))
+    if "factory" in sel:
+        rep = party_performance_report(session, PARTY_FACTORY, start, end)
+        sections.append(ReportSection(i18n.tr("factories"), rep.headers, rep.rows))
+        titles.append(i18n.tr("factories"))
+    if "supplier" in sel:
+        rep = party_performance_report(session, PARTY_BAPARI, start, end)
+        sections.append(ReportSection(i18n.tr("suppliers"), rep.headers, rep.rows))
+        titles.append(i18n.tr("suppliers"))
+    return ReportData(
+        " + ".join(titles) + _period_suffix(start, end),
+        [], [], hero=hero, sections=sections)
+
+
+def financial_position_report(session: Session, selected) -> ReportData:
+    """Financial Position's selectable export. ``selected`` is any subset of
+    {"bank", "receivable", "payable"}.
+
+    * One section -> that section's native table (same as the tab).
+    * Receivable + payable together -> the SAME two-column Receivable | Giveable
+      list form used on the Reports page (subsections + middle divider).
+    """
+    sel = [s for s in ("bank", "receivable", "payable") if s in selected]
+    if sel == ["bank"]:
+        return position_report(session, "bank")
+    if sel == ["receivable"]:
+        return position_report(session, "receivable")
+    if sel == ["payable"]:
+        return position_report(session, "payable")
+
+    sections: list[ReportSection] = []
+    titles: list[str] = []
+    if "bank" in sel:
+        b = position_report(session, "bank")
+        sections.append(ReportSection(i18n.tr("bank_total"), b.headers, b.rows))
+        titles.append(i18n.tr("banks"))
+    if "receivable" in sel and "payable" in sel:
+        sections.append(_receivable_payable_section(session))
+        titles += [i18n.tr("to_receive"), i18n.tr("to_give")]
+    elif "receivable" in sel:
+        r = position_report(session, "receivable")
+        sections.append(ReportSection(i18n.tr("to_receive"), r.headers, r.rows))
+        titles.append(i18n.tr("to_receive"))
+    elif "payable" in sel:
+        p = position_report(session, "payable")
+        sections.append(ReportSection(i18n.tr("to_give"), p.headers, p.rows))
+        titles.append(i18n.tr("to_give"))
+    return ReportData(
+        f"{i18n.tr('financial_position')} — " + " + ".join(titles),
+        [], [], sections=sections)

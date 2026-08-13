@@ -328,11 +328,7 @@ class UnknownPaymentPanel(QWidget):
             bar.addWidget(b)
         root.addWidget(design.toolbar_wrap(bar))
 
-        self.empty_label = QLabel(i18n.tr("no_unknown"))
-        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.empty_label.setStyleSheet(
-            "color:#94a3b8; font-size:14px; padding:30px;"
-        )
+        self.empty_label = design.empty_state(i18n.tr("no_unknown"), "", "inbox")
         root.addWidget(self.empty_label)
         root.addWidget(self.table)
 
@@ -353,10 +349,11 @@ class UnknownPaymentPanel(QWidget):
         largest = max((r.amount for r in rows), default=0)
         cards = [
             stat_card(i18n.tr("unclaimed_total"), fmt(total), "#7c3aed",
-                      f"{count} {i18n.tr('receipts_waiting')}"),
+                      f"{count} {i18n.tr('receipts_waiting')}", "inbox"),
             stat_card(i18n.tr("oldest_waiting"), f"{oldest_days} {i18n.tr('days_short')}",
-                      _age_colour(oldest_days)),
-            stat_card(i18n.tr("largest_receipt"), fmt(largest), "#0d9488"),
+                      _age_colour(oldest_days), "", "alarm-clock"),
+            stat_card(i18n.tr("largest_receipt"), fmt(largest), "#0d9488", "",
+                      "trending-up"),
         ]
         for c in cards:
             self.cards_layout.addWidget(c, stretch=1)

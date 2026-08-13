@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from timber import i18n
 from timber.ui import design
@@ -16,11 +16,9 @@ class WoodTypeLedgerScreen(QWidget):
     def __init__(self, current_user: CurrentUser, parent=None) -> None:
         super().__init__(parent)
         root = QVBoxLayout(self)
-
-        header = QLabel(i18n.tr("wood_type_ledger"))
-        header.setStyleSheet(
-            f"color:{design.c('text')};font-size:18px;font-weight:800;")
-        root.addWidget(header)
+        # Side inset; no in-page title (the page bar shows the page name).
+        root.setContentsMargins(22, 8, 22, 14)
+        root.setSpacing(12)
 
         self.table = make_table(
             [i18n.tr("wood_type"), i18n.tr("bought"), i18n.tr("sold")]

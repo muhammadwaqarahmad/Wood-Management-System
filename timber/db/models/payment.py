@@ -54,7 +54,13 @@ class Payment(Base):
     __tablename__ = "payments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # The date the payment is EFFECTIVE / was received — drives the ledger and
+    # which week it settles. The operator sets this (may be back-dated).
     txn_date: Mapped[date] = mapped_column(Date)
+    # The date the record was actually typed in (audit only; defaults to the
+    # day of entry). Lets "received in week 2, entered in week 3" land in
+    # week 2 while still recording when it was booked. NULL on legacy rows.
+    entry_date: Mapped[date | None] = mapped_column(Date, default=None)
 
     party_id: Mapped[int] = mapped_column(ForeignKey("parties.id"))
 

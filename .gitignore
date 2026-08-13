@@ -35,6 +35,12 @@ mobile/ios/Pods/
 # Scratch / big binaries
 AbdulSattarWoods.apk
 
+# Generated export artifacts at the repo root (were accidentally committed once).
+# Real exports are written to a user-chosen folder, never here.
+/*.pdf
+/*.xlsx
+/*.csv
+
 # PyInstaller build artifacts
 build/
 dist/

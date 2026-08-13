@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QPushButton, QVBoxLayout, QWidget
 
 from timber import i18n
 from timber.ui import design, icons
@@ -19,6 +19,9 @@ class AuditLogScreen(QWidget):
         super().__init__(parent)
         design.refresh()
         root = QVBoxLayout(self)
+        # Side inset, consistent with the other pages.
+        root.setContentsMargins(22, 8, 22, 14)
+        root.setSpacing(12)
 
         # This page has no sidebar entry (it opens from Settings), so it needs
         # its own way back — otherwise there is no route out of it.

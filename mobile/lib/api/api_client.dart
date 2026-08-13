@@ -131,17 +131,22 @@ class ApiClient {
   static const _coldStart = {502, 503, 504};
 
   Future<T> _withRetry<T>(Future<T> Function() send) async {
-    for (var attempt = 0; ; attempt++) {
+    // Free cloud hosts return 502/503/504 (or are slow) for up to ~60s while
+    // waking from sleep. Keep retrying through that for a generous budget so the
+    // first request after an idle spell just takes a moment instead of failing.
+    final deadline = DateTime.now().add(const Duration(seconds: 80));
+    var delaySeconds = 3;
+    while (true) {
       try {
         return await send();
       } on DioException catch (e) {
-        final status = e.response?.statusCode;
-        final wakeable = _coldStart.contains(status) ||
+        final wakeable = _coldStart.contains(e.response?.statusCode) ||
             e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout ||
             e.type == DioExceptionType.connectionError;
-        if (!wakeable || attempt >= 3) throw _toApiException(e);
-        await Future.delayed(Duration(seconds: 4 * (attempt + 1))); // 4s, 8s, 12s
+        if (!wakeable || DateTime.now().isAfter(deadline)) throw _toApiException(e);
+        await Future.delayed(Duration(seconds: delaySeconds));
+        delaySeconds = (delaySeconds + 3).clamp(3, 12); // 3,6,9,12,12,...
       }
     }
   }

@@ -6,7 +6,6 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QHBoxLayout,
     QInputDialog,
-    QLabel,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -30,10 +29,12 @@ class ReferenceManagerScreen(QWidget):
         self.model = model
 
         root = QVBoxLayout(self)
-        header = QLabel(i18n.tr(title_key))
-        header.setStyleSheet(
-            f"color:{design.c('text')};font-size:18px;font-weight:800;")
-        root.addWidget(header)
+        # This screen is ALWAYS embedded in the Master Data card (Wood-types
+        # tab), which supplies its own padding — so no side inset here (that
+        # would double up), and no in-page title (the segment tab labels it),
+        # matching the sibling PartyTypePanel.
+        root.setContentsMargins(0, 6, 0, 0)
+        root.setSpacing(12)
 
         # Wood types carry default rates (one per side); other lookups don't.
         self._has_rate = hasattr(model, "default_supplier_rate")
@@ -45,31 +46,30 @@ class ReferenceManagerScreen(QWidget):
         root.addWidget(self.table)
 
         buttons = QHBoxLayout()
-        self.add_btn = QPushButton(i18n.tr("add"))
-        self.rename_btn = QPushButton(i18n.tr("rename"))
-        self.toggle_btn = QPushButton(i18n.tr("deactivate"))
-        self.delete_btn = QPushButton(i18n.tr("delete"))
-        self.delete_btn.setStyleSheet(design.btn("danger"))
-        self.rates_btn = QPushButton(i18n.tr("set_rates"))
-        self.rates_btn.clicked.connect(self._set_rates)
-        self.rates_btn.setVisible(self._has_rate)
-        self.add_btn.clicked.connect(self._add)
-        self.rename_btn.clicked.connect(self._rename)
-        self.toggle_btn.clicked.connect(self._toggle)
-        self.delete_btn.clicked.connect(self._delete)
-        buttons.addWidget(self.add_btn)
-        buttons.addWidget(self.rename_btn)
+        # One "Manage" dropdown holds every action (add / rename / [set rates] /
+        # deactivate / delete) for a clean, consistent toolbar.
+        _actions = [
+            (i18n.tr("add"), self._add, "plus"),
+            (i18n.tr("rename"), self._rename, "pencil"),
+        ]
         if self._has_rate:
-            buttons.addWidget(self.rates_btn)
-        buttons.addWidget(self.toggle_btn)
-        buttons.addWidget(self.delete_btn)
+            _actions.append((i18n.tr("set_rates"), self._set_rates, "trending-up"))
+        _actions += [
+            (i18n.tr("deactivate"), self._toggle, "eye-off"),
+            None,
+            (i18n.tr("delete"), self._delete, "trash", "danger"),
+        ]
+        self.manage_btn = design.manage_button(_actions, parent=self)
+        buttons.addWidget(self.manage_btn)
         buttons.addStretch()
         root.addWidget(design.toolbar_wrap(buttons))
 
+        # Everything except delete needs MANAGE_SETTINGS; delete needs DELETE_RECORD.
+        _acts = self.manage_btn._manage_actions
         if not has_permission(current_user.role, Permission.MANAGE_SETTINGS):
-            for b in (self.add_btn, self.rename_btn, self.rates_btn, self.toggle_btn):
-                b.setEnabled(False)
-        self.delete_btn.setEnabled(
+            for a in _acts[:-1]:
+                a.setEnabled(False)
+        _acts[-1].setEnabled(
             has_permission(current_user.role, Permission.DELETE_RECORD)
         )
 

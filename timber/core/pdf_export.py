@@ -165,7 +165,7 @@ def write(report: ReportData, path: str | Path) -> Path:
         story.append(Spacer(1, 4))
 
     def _data_table(headers: list[str], rows: list[list[str]],
-                    bold_rows: list[int], fsize: int) -> Table:
+                    bold_rows: list[int], fsize: int, divider=None) -> Table:
         nc = max(len(headers), 1)
         data = [[_para(h, size=fsize, bold=True, white=True) for h in headers]]
         for i, row in enumerate(rows):
@@ -187,11 +187,13 @@ def write(report: ReportData, path: str | Path) -> Path:
             style.append(
                 ("BACKGROUND", (0, i + 1), (-1, i + 1), colors.HexColor("#e2e8f0"))
             )
-        # Bold vertical divider line (e.g. split ledger's left|right split).
-        if report.divider_after is not None and 0 <= report.divider_after < nc:
-            d = report.divider_after
+        # Bold vertical divider line (e.g. split ledger's left|right split, or
+        # the Receivable | Giveable middle line). Per-table so different tables
+        # in one report can each place (or omit) their own divider.
+        if divider is not None and 0 <= divider < nc:
             style.append(
-                ("LINEAFTER", (d, 0), (d, -1), 1.8, colors.HexColor("#0f172a"))
+                ("LINEAFTER", (divider, 0), (divider, -1), 1.8,
+                 colors.HexColor("#0f172a"))
             )
         t.setStyle(TableStyle(style))
         return t
@@ -203,10 +205,12 @@ def write(report: ReportData, path: str | Path) -> Path:
             story.append(_para(sec.title, size=11, bold=True, align=TA_LEFT))
             story.append(Spacer(1, 4))
             fsize = 9 if len(sec.headers) <= 9 else 7
-            story.append(_data_table(sec.headers, sec.rows, sec.bold_rows, fsize))
+            div = sec.divider_after if sec.divider_after is not None else report.divider_after
+            story.append(_data_table(sec.headers, sec.rows, sec.bold_rows, fsize, div))
     elif report.headers or report.rows:
         # --- classic single data table ---
-        story.append(_data_table(report.headers, report.rows, [], size))
+        story.append(_data_table(report.headers, report.rows, [], size,
+                                 report.divider_after))
 
     # --- summary box ---
     if report.summary:

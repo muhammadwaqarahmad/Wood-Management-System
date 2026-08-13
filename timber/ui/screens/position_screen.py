@@ -15,17 +15,20 @@ from decimal import Decimal
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QDialog,
     QFrame,
     QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from timber import i18n
-from timber.ui import design
+from timber.ui import design, icons
 from timber.ui.segmented import SegmentedControl
 from timber.core.current_user import CurrentUser
 from timber.core.position import financial_position
@@ -59,39 +62,14 @@ def _kind_key(kind: str) -> str:
     return {"supplier": "bapari", "factory": "factory", "loan": "loan"}.get(kind, kind)
 
 
-def _kpi_card(title: str, value: str, accent: str) -> QFrame:
-    """The shared KPI tile: caption over an accent value, bar on the leading
-    edge. This used to hard-code a dark slate card, so on the light theme it
-    sat as a dark block in the middle of a light page.
-    """
+def _kpi_card(title: str, value: str, accent: str, icon: str = "") -> QFrame:
+    """A KPI tile — the shared ``design.stat_tile``, so the panel cards match
+    the page headline and the Dashboard (one component, one look)."""
     from timber.ui import design
 
-    design.refresh()
-    frame = QFrame()
-    frame.setObjectName("kpi")
-    frame.setStyleSheet(
-        "QFrame#kpi {"
-        f"  background: {design.c('surface')};"
-        f"  border: 1px solid {design.c('border')};"
-        f"  border-left: 4px solid {accent};"
-        "  border-radius: 16px;"
-        "}"
-        "QLabel { background: transparent; border: none; }"
-    )
-    box = QVBoxLayout(frame)
-    box.setContentsMargins(16, 13, 16, 14)
-    box.setSpacing(8)
-    t = QLabel(title.upper())
-    t.setWordWrap(True)
-    t.setStyleSheet(
-        f"color:{design.c('muted')};font-size:11px;font-weight:700;letter-spacing:0.6px;"
-    )
-    v = QLabel(value)
-    v.setStyleSheet(f"color:{accent};font-size:21px;font-weight:800;")
-    box.addWidget(t)
-    box.addWidget(v)
+    frame, val = design.stat_tile(title, accent, icon)
+    val.setText(value)
     frame.setMinimumHeight(78)
-    design.shadow(frame, blur=20, dy=3)
     return frame
 
 
@@ -143,41 +121,43 @@ class _PositionPanel(QWidget):
             self._fill_bank(pos)
         elif self.section == "receivable":
             self._fill_parties(pos.receivables, pos.total_receivable,
-                               i18n.tr("to_receive"), BAL_GREEN)
+                               i18n.tr("to_receive"), BAL_GREEN, "trending-up")
         else:
             self._fill_parties(pos.payables, pos.total_payable,
-                               i18n.tr("to_give"), BAL_RED)
+                               i18n.tr("to_give"), BAL_RED, "trending-down")
         self.search.apply()
 
     def _fill_bank(self, pos) -> None:
         cards = [
-            (i18n.tr("bank_total"), fmt(pos.bank_total), _ACCENT_BLUE),
+            (i18n.tr("bank_total"), fmt(pos.bank_total), _ACCENT_BLUE, "landmark"),
             (i18n.tr("cash_position"), fmt(pos.cash_balance),
-             _money_colour(pos.cash_balance)),
-            (i18n.tr("cheque_balance"), fmt(pos.cheque_total), _ACCENT_AMBER),
+             _money_colour(pos.cash_balance), "wallet"),
+            (i18n.tr("cheque_balance"), fmt(pos.cheque_total), _ACCENT_AMBER,
+             "file-check"),
         ]
         # Unattributed money is already inside the grand total; show it as its
         # own card only when there is some waiting to be claimed.
         if pos.unclaimed_total > 0:
             cards.append(
-                (i18n.tr("unclaimed_total"), fmt(pos.unclaimed_total), _ACCENT_AMBER)
+                (i18n.tr("unclaimed_total"), fmt(pos.unclaimed_total),
+                 _ACCENT_AMBER, "info")
             )
         cards.append(
             (i18n.tr("grand_total"), fmt(pos.grand_total),
-             _money_colour(pos.grand_total))
+             _money_colour(pos.grand_total), "pie-chart")
         )
-        for title, value, accent in cards:
-            self.cards_layout.addWidget(_kpi_card(title, value, accent))
+        for title, value, accent, icon in cards:
+            self.cards_layout.addWidget(_kpi_card(title, value, accent, icon))
         fill_table(self.table, [
             [a.name, a.bank_name or "", fmt(a.closing)] for a in pos.accounts
         ])
         for i, a in enumerate(pos.accounts):
             colour_cell(self.table, i, 2, _money_colour(a.closing))
 
-    def _fill_parties(self, rows, total, label, accent) -> None:
-        self.cards_layout.addWidget(_kpi_card(label, fmt(total), accent))
+    def _fill_parties(self, rows, total, label, accent, icon="") -> None:
+        self.cards_layout.addWidget(_kpi_card(label, fmt(total), accent, icon))
         self.cards_layout.addWidget(
-            _kpi_card(i18n.tr("parties"), str(len(rows)), _ACCENT_SLATE)
+            _kpi_card(i18n.tr("parties"), str(len(rows)), _ACCENT_SLATE, "book-user")
         )
         self.cards_layout.addStretch()
         fill_table(self.table, [
@@ -186,6 +166,52 @@ class _PositionPanel(QWidget):
         ])
         for i in range(len(rows)):
             colour_cell(self.table, i, 3, accent)
+
+
+class _PositionExportDialog(design.Dialog):
+    """Pick which sections to export: Bank / To receive / To give."""
+
+    def __init__(self, current_section, parent=None) -> None:
+        super().__init__(i18n.tr("export"), "download", parent=parent, width=420)
+        self.fmt = "pdf"
+        hint = QLabel(i18n.tr("export_choose_sections"))
+        hint.setWordWrap(True)
+        hint.setStyleSheet(f"color:{design.c('muted')};font-size:12px;")
+        self.body.addWidget(hint)
+
+        self.cb_bank = QCheckBox(i18n.tr("bank_total"))
+        self.cb_recv = QCheckBox(i18n.tr("to_receive"))
+        self.cb_pay = QCheckBox(i18n.tr("to_give"))
+        self.cb_bank.setChecked(current_section == "bank")
+        self.cb_recv.setChecked(current_section == "receivable")
+        self.cb_pay.setChecked(current_section == "payable")
+        for cb in (self.cb_bank, self.cb_recv, self.cb_pay):
+            cb.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.body.addWidget(cb)
+
+        pdf, _cancel = self.buttons(i18n.tr("export_pdf"))
+        pdf.clicked.connect(lambda: self._go("pdf"))
+        xls = QPushButton(i18n.tr("export_excel"))
+        xls.setStyleSheet(design.btn("primary"))
+        xls.setCursor(Qt.CursorShape.PointingHandCursor)
+        xls.clicked.connect(lambda: self._go("xlsx"))
+        self.add_button(xls)
+
+    def _go(self, fmt: str) -> None:
+        if not self.selection():
+            return
+        self.fmt = fmt
+        self.accept()
+
+    def selection(self) -> set:
+        sel = set()
+        if self.cb_bank.isChecked():
+            sel.add("bank")
+        if self.cb_recv.isChecked():
+            sel.add("receivable")
+        if self.cb_pay.isChecked():
+            sel.add("payable")
+        return sel
 
 
 class PositionScreen(QWidget):
@@ -236,10 +262,17 @@ class PositionScreen(QWidget):
         self._search_host = QHBoxLayout()
         self._search_host.setContentsMargins(0, 0, 0, 0)
         segrow.addLayout(self._search_host, 1)
-        self._export_host = QHBoxLayout()
-        self._export_host.setContentsMargins(0, 0, 0, 0)
-        self._export_host.setSpacing(9)
-        segrow.addLayout(self._export_host)
+        # One selectable export (Bank / To receive / To give), like the Reports
+        # page — receivable + payable together use the same two-column list form.
+        self.export_btn = QPushButton(i18n.tr("export"))
+        self.export_btn.setStyleSheet(design.btn("primary"))
+        self.export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        try:
+            self.export_btn.setIcon(icons.icon("download", "#ffffff", 15))
+        except Exception:  # noqa: BLE001 - icon is decoration only
+            pass
+        self.export_btn.clicked.connect(self._open_export)
+        segrow.addWidget(self.export_btn)
         root.addWidget(design.toolbar_wrap(segrow))
 
         self.stack = QStackedWidget()
@@ -255,24 +288,38 @@ class PositionScreen(QWidget):
         self._mount_tools()
 
     def _mount_tools(self) -> None:
-        """Show the CURRENT section's search + export in the shared top row."""
-        for host in (self._search_host, self._export_host):
-            while host.count():
-                item = host.takeAt(0)
-                if item.widget():
-                    item.widget().setParent(None)
+        """Show the CURRENT section's search in the shared top row. Export is a
+        single selectable button (not per-section), so nothing to mount here."""
+        while self._search_host.count():
+            item = self._search_host.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
         panel = self.stack.currentWidget()
         if panel is None:
             return
         self._search_host.addWidget(panel.search)
-        for b in panel.export_btns:
-            self._export_host.addWidget(b)
-        # Deliberately NOT advertising a _report_builder on the page: doing so
-        # made the shared page-bar show its OWN Export PDF/Excel as well, so
-        # the screen carried two identical pairs. The section's buttons live
-        # in this toolbar, beside the section switcher.
+        # No shared top-right export — the page's own "Export" button drives it.
         self._report_builder = None
-        self._report_name = f"position_{panel.section}"
+
+    def _open_export(self) -> None:
+        """Pick sections (Bank / To receive / To give) and export one file."""
+        from timber.core.report_data import financial_position_report
+        from timber.ui.screens.export_helpers import run_export
+
+        panel = self.stack.currentWidget()
+        section = panel.section if panel else "bank"
+        dlg = _PositionExportDialog(section, parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        sel = dlg.selection()
+        if not sel:
+            return
+
+        def _build():
+            with SessionLocal() as s:
+                return financial_position_report(s, sel)
+
+        run_export(self, _build, "financial_position", dlg.fmt)
 
     def refresh(self) -> None:
         with SessionLocal() as session:

@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QDoubleSpinBox,
     QFormLayout,
-    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -44,36 +43,6 @@ from timber.ui.screens.table_utils import (
     make_table,
     words_label,
 )
-
-
-def _stat_card(accent: str, _unused: str = "") -> tuple[QFrame, QLabel, QLabel]:
-    """A live-updating KPI tile; returns (frame, title_label, value_label).
-
-    This page used to draw its own saturated gradient cards, which is why it
-    never matched the Dashboard. It now uses the shared tile look — surface
-    background, accent bar on the leading edge — while still handing back the
-    two labels so ``refresh`` can keep writing into them.
-    """
-    design.refresh()
-    box = QFrame()
-    box.setObjectName("statCard")
-    box.setStyleSheet(
-        "#statCard{background:" + design.c("surface") + ";border:1px solid "
-        + design.c("border") + ";border-radius:16px;border-left:4px solid "
-        + accent + ";}")
-    design.shadow(box, blur=20, dy=3)
-    lay = QVBoxLayout(box)
-    lay.setContentsMargins(16, 13, 16, 14)
-    lay.setSpacing(8)
-    title = QLabel("")
-    title.setWordWrap(True)
-    title.setStyleSheet(
-        f"color:{design.c('muted')};font-size:11px;font-weight:700;letter-spacing:0.6px;")
-    value = QLabel("—")
-    value.setStyleSheet(f"color:{design.c('text')};font-size:21px;font-weight:800;")
-    lay.addWidget(title)
-    lay.addWidget(value)
-    return box, title, value
 
 
 class ExpenseDialog(design.Dialog):
@@ -150,6 +119,10 @@ class ExpensesScreen(QWidget):
         self.current_user = current_user
 
         root = QVBoxLayout(self)
+        # Side inset so filters / cards / table sit off the panel's rounded
+        # edge, consistent with the other pages.
+        root.setContentsMargins(22, 8, 22, 14)
+        root.setSpacing(12)
 
         # --- Filter row: kind tabs + period + category ------------------
         filters = QHBoxLayout()
@@ -205,17 +178,19 @@ class ExpensesScreen(QWidget):
         # --- Stat cards --------------------------------------------------
         cards = QHBoxLayout()
         cards.setSpacing(10)
+        # (i18n key, accent, icon) — the shared compact tile, one per stat.
         specs = [
-            ("total_expenses", "#dc2626", "#b91c1c"),
-            ("business_expenses", "#2563eb", "#1e40af"),
-            ("house_expenses", "#d97706", "#b45309"),
-            ("entries", "#475569", "#334155"),
-            ("top_categories", "#7c3aed", "#5b21b6"),
+            ("total_expenses", "#dc2626", "trending-down"),
+            ("business_expenses", "#2563eb", "landmark"),
+            ("house_expenses", "#d97706", "receipt"),
+            ("entries", "#475569", "database"),
+            ("top_categories", "#7c3aed", "pie-chart"),
         ]
         self._cards = {}
-        for key, c1, c2 in specs:
-            box, title, value = _stat_card(c1, c2)
-            title.setText(i18n.tr(key).upper())
+        for key, accent, icon in specs:
+            # value stays in the normal text colour (expense figures are neutral).
+            box, value = design.stat_tile(
+                i18n.tr(key), accent, icon, value_color=design.c("text"))
             cards.addWidget(box, 1)
             self._cards[key] = value
         root.addLayout(cards)
@@ -236,22 +211,18 @@ class ExpensesScreen(QWidget):
         root.addWidget(self.table)
 
         buttons = QHBoxLayout()
-        self.add_btn = QPushButton(i18n.tr("add"))
-        self.edit_btn = QPushButton(i18n.tr("edit"))
-        self.void_btn = QPushButton(i18n.tr("void"))
-        self.add_btn.clicked.connect(self._add)
-        self.edit_btn.clicked.connect(self._edit)
-        self.void_btn.clicked.connect(self._void)
-        buttons.addWidget(self.add_btn)
-        buttons.addWidget(self.edit_btn)
-        buttons.addWidget(self.void_btn)
+        self.manage_btn = design.manage_button([
+            (i18n.tr("add"), self._add, "plus"),
+            (i18n.tr("edit"), self._edit, "pencil"),
+            None,
+            (i18n.tr("void"), self._void, "x", "danger"),
+        ], parent=self)
+        self.manage_btn.setEnabled(
+            has_permission(current_user.role, Permission.MANAGE_PAYMENTS)
+        )
+        buttons.addWidget(self.manage_btn)
         buttons.addStretch()
         root.addWidget(design.toolbar_wrap(buttons))
-
-        can = has_permission(current_user.role, Permission.MANAGE_PAYMENTS)
-        self.add_btn.setEnabled(can)
-        self.edit_btn.setEnabled(can)
-        self.void_btn.setEnabled(can)
 
         self.refresh()
 

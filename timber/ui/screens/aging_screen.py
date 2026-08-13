@@ -18,6 +18,10 @@ class AgingScreen(QWidget):
     def __init__(self, current_user: CurrentUser, parent=None) -> None:
         super().__init__(parent)
         root = QVBoxLayout(self)
+        # Side inset so tiles / search / table sit off the panel's rounded
+        # edge, consistent with the other pages.
+        root.setContentsMargins(22, 8, 22, 14)
+        root.setSpacing(12)
 
         # The age buckets are the story on this page — show them as tiles,
         # greener when the money is young, redder as it ages.

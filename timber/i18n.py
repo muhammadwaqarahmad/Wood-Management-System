@@ -82,6 +82,14 @@ STRINGS: dict[str, dict[str, str]] = {
     "duplicate_last": {"en": "Duplicate last", "ur": "پچھلا دہرائیں"},
     # fields
     "date": {"en": "Date", "ur": "تاریخ"},
+    "received_date": {"en": "Received date", "ur": "وصولی کی تاریخ"},
+    "entry_date": {"en": "Entry date", "ur": "اندراج کی تاریخ"},
+    "received_date_hint": {
+        "en": "The date the payment was received — it lands in this date's "
+              "week. Entry date is just when you typed it.",
+        "ur": "ادائیگی وصول ہونے کی تاریخ — یہ اسی تاریخ کے ہفتے میں آئے گی۔ "
+              "اندراج کی تاریخ صرف یہ ہے کہ آپ نے کب درج کیا۔",
+    },
     "party": {"en": "Party", "ur": "پارٹی"},
     "bapari": {"en": "Supplier", "ur": "بیوپاری"},
     "factory": {"en": "Factory", "ur": "فیکٹری"},
@@ -141,6 +149,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "daily_bank_balance": {"en": "Daily bank balance", "ur": "ڈیلی بینک بیلنس"},
     "to_receive": {"en": "To receive", "ur": "لینا ہے"},
     "to_give": {"en": "To give", "ur": "دینا ہے"},
+    "subtotal": {"en": "Subtotal", "ur": "ذیلی میزان"},
+    "receivable_giveable": {"en": "Receivable & Giveable", "ur": "لینا اور دینا"},
     "contact": {"en": "Contact", "ur": "رابطہ"},
     "bank_total": {"en": "Bank", "ur": "بینک"},
     "grand_total": {"en": "Total", "ur": "کل"},
@@ -310,6 +320,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "top_baparis": {"en": "Top suppliers", "ur": "نمایاں بیوپاری"},
     "outstanding_balances": {"en": "Outstanding balances", "ur": "بقایا رقوم"},
     "no_data": {"en": "No data", "ur": "کوئی ڈیٹا نہیں"},
+    "no_records": {"en": "No records yet", "ur": "ابھی کوئی ریکارڈ نہیں"},
+    "nothing_to_show": {"en": "Nothing to show", "ur": "دکھانے کو کچھ نہیں"},
     "net_profit": {"en": "Net profit", "ur": "خالص منافع"},
     "cash_flow": {"en": "Cash flow (in / out)", "ur": "نقدی بہاؤ (وصول/ادا)"},
     "bank_balances": {"en": "Bank balances", "ur": "بینک بیلنس"},
@@ -326,6 +338,12 @@ STRINGS: dict[str, dict[str, str]] = {
     # reports / export
     "export_pdf": {"en": "Export PDF", "ur": "پی ڈی ایف برآمد"},
     "export_excel": {"en": "Export Excel", "ur": "ایکسل برآمد"},
+    "export": {"en": "Export", "ur": "برآمد"},
+    "mobile": {"en": "Mobile", "ur": "موبائل"},
+    "export_choose_sections": {
+        "en": "Choose what to include in the export:",
+        "ur": "برآمد میں کیا شامل کرنا ہے منتخب کریں:",
+    },
     "exported": {"en": "Exported", "ur": "برآمد ہو گیا"},
     "generated_on": {"en": "Generated on", "ur": "تیار کردہ"},
     "page": {"en": "Page", "ur": "صفحہ"},
@@ -454,6 +472,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "category": {"en": "Category", "ur": "قسم"},
     "bank_account": {"en": "Bank account", "ur": "بینک اکاؤنٹ"},
     "available": {"en": "Available", "ur": "دستیاب"},
+    "available_balance": {"en": "Available balance", "ur": "دستیاب بیلنس"},
     "total_expenses": {"en": "Total expenses", "ur": "کل اخراجات"},
     "business_expenses": {"en": "Business expenses", "ur": "کاروباری اخراجات"},
     "house_expenses": {"en": "House expenses", "ur": "گھریلو اخراجات"},
@@ -557,9 +576,36 @@ STRINGS: dict[str, dict[str, str]] = {
     "left_balance": {"en": "Weekly balance", "ur": "ہفتہ وار بیلنس"},
     "right_balance": {"en": "Regular balance", "ur": "ریگولر بیلنس"},
     "combined_balance": {"en": "Combined balance", "ur": "مجموعی بیلنس"},
+    "weekly_settlement": {"en": "Weekly settlement", "ur": "ہفتہ وار حساب"},
+    "detailed_ledger": {"en": "Detailed ledger", "ur": "تفصیلی کھاتہ"},
+    "carried_in": {"en": "Carried in", "ur": "سابقہ بقایا"},
+    "carried_forward": {"en": "Carried forward", "ur": "اگلا بقایا"},
+    "charged": {"en": "Charged", "ur": "واجب الادا"},
+    "no_weekly_factory_hint": {
+        "en": "Pick a split factory to see its weekly clearing — each week's "
+              "unpaid weekly balance rolls into the next week.",
+        "ur": "ہفتہ وار حساب دیکھنے کے لیے ایک اسپلٹ فیکٹری منتخب کریں — ہر ہفتے "
+              "کا غیر ادا شدہ ہفتہ وار بیلنس اگلے ہفتے میں منتقل ہوتا ہے۔",
+    },
     "no_split_rate_hint": {
-        "en": "Set a split rate above to activate this factory's sub-ledger.",
-        "ur": "اس فیکٹری کا ذیلی کھاتہ فعال کرنے کے لیے اوپر تقسیم ریٹ درج کریں۔",
+        "en": "Set per-wood split rates to activate this factory's sub-ledger.",
+        "ur": "اس فیکٹری کا ذیلی کھاتہ فعال کرنے کے لیے فی لکڑی تقسیم ریٹ مقرر کریں۔",
+    },
+    "set_split_rates": {"en": "Set split rates", "ur": "تقسیم ریٹ مقرر کریں"},
+    "manage": {"en": "Manage ▾", "ur": "انتظام ▾"},
+    "settled": {"en": "Settled", "ur": "طے شدہ"},
+    "weekly_status": {"en": "Weekly status", "ur": "ہفتہ وار حالت"},
+    "split_rate_for_wood": {
+        "en": "Split amount per maund for each wood type. 0 = no split "
+              "(whole rate stays on the weekly side).",
+        "ur": "ہر لکڑی کی قسم کے لیے فی من تقسیم رقم۔ 0 = کوئی تقسیم نہیں "
+              "(پورا ریٹ ہفتہ وار طرف رہے گا)۔",
+    },
+    "no_traded_woods": {
+        "en": "This factory has no loads yet — add a trade first, then set "
+              "its per-wood split rates.",
+        "ur": "اس فیکٹری کی ابھی کوئی ٹریڈ نہیں — پہلے ٹریڈ شامل کریں، "
+              "پھر فی لکڑی تقسیم ریٹ مقرر کریں۔",
     },
     "add_split_factory": {"en": "Add factory", "ur": "فیکٹری شامل کریں"},
     "no_split_factory_hint": {

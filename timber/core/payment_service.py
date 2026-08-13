@@ -44,6 +44,7 @@ def create_payment(
     session: Session,
     *,
     txn_date: date,
+    entry_date: date | None = None,
     party_id: int,
     amount: Any,
     direction: str | None = None,
@@ -90,6 +91,8 @@ def create_payment(
 
     payment = Payment(
         txn_date=txn_date,
+        # Booking day: what the operator typed, else the received date.
+        entry_date=entry_date if entry_date is not None else txn_date,
         party_id=party_id,
         direction=direction,
         amount=amt,
@@ -121,6 +124,7 @@ def update_payment(
     payment_id: int,
     *,
     txn_date: date,
+    entry_date: date | None = None,
     amount: Any,
     direction: str | None = None,
     method: str = METHOD_CASH,
@@ -128,11 +132,20 @@ def update_payment(
     party_bank_id: int | None = None,
     reference_no: str | None = None,
     notes: str | None = None,
+    party_id: int | None = None,
+    split_side: str | None = None,
     created_by: int | None = None,
 ) -> Payment:
     payment = session.get(Payment, payment_id)
     if payment is None:
         raise ValueError("Payment not found.")
+    # Allow moving a payment to a different party (e.g. it was saved against the
+    # wrong supplier/factory). Both the old and new party are re-allocated below.
+    old_party_id = payment.party_id
+    if party_id is not None and party_id != payment.party_id:
+        if session.get(Party, party_id) is None:
+            raise ValueError("Please select a party.")
+        payment.party_id = party_id
     # Omitted direction leaves the stored one alone, so existing callers that
     # never knew about it keep working.
     if direction is not None and direction not in (PAYMENT_IN, PAYMENT_OUT):
@@ -154,6 +167,8 @@ def update_payment(
             raise ValueError("Bank account not found.")
 
     payment.txn_date = txn_date
+    if entry_date is not None:
+        payment.entry_date = entry_date
     payment.amount = amt
     if direction is not None:
         payment.direction = direction
@@ -162,9 +177,12 @@ def update_payment(
     payment.party_bank_id = party_bank_id
     payment.reference_no = (reference_no or None)
     payment.notes = (notes or None)
+    payment.split_side = split_side if split_side in ("left", "right") else None
     session.flush()
     log_action(session, created_by, "update", "payments", payment_id, f"{amt} via {method}")
     reallocate_party(session, payment.party_id)
+    if old_party_id != payment.party_id:
+        reallocate_party(session, old_party_id)  # the party it moved away from
     return payment
 
 

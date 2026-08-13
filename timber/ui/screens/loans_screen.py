@@ -138,6 +138,10 @@ class LoansScreen(QWidget):
         can = has_permission(current_user.role, Permission.MANAGE_PAYMENTS)
 
         root = QVBoxLayout(self)
+        # Side inset so tiles / search / table sit off the panel's rounded
+        # edge, consistent with the other pages.
+        root.setContentsMargins(22, 8, 22, 14)
+        root.setSpacing(12)
 
         design.refresh()
         totals = QHBoxLayout()
@@ -161,16 +165,14 @@ class LoansScreen(QWidget):
         root.addWidget(self.table)
 
         buttons = QHBoxLayout()
-        self.borrow_btn = QPushButton(i18n.tr("add"))
-        self.repay_btn = QPushButton(i18n.tr("repay_loan"))
-        self.delete_btn = QPushButton(i18n.tr("delete"))
-        self.delete_btn.setStyleSheet(design.btn("danger"))
-        self.borrow_btn.clicked.connect(self._borrow)
-        self.repay_btn.clicked.connect(self._repay)
-        self.delete_btn.clicked.connect(self._delete)
-        for b in (self.borrow_btn, self.repay_btn, self.delete_btn):
-            b.setEnabled(can)
-            buttons.addWidget(b)
+        self.manage_btn = design.manage_button([
+            (i18n.tr("add"), self._borrow, "plus"),
+            (i18n.tr("repay_loan"), self._repay, "hand-coins"),
+            None,
+            (i18n.tr("delete"), self._delete, "trash", "danger"),
+        ], parent=self)
+        self.manage_btn.setEnabled(can)
+        buttons.addWidget(self.manage_btn)
         buttons.addStretch()
         root.addWidget(design.toolbar_wrap(buttons))
 

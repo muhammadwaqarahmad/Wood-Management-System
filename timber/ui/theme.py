@@ -43,8 +43,8 @@ _PALETTES: dict[str, dict[str, str]] = {
         "menu_bg": "#ffffff", "menu_border": "#e2e8f0", "menu_text": "#1e293b",
         "menu_hover": "#f1f5f9",
         "chip_hover": "rgba(255,255,255,0.16)",
-        "accent": "#6366f1", "accent2": "#8b5cf6",
-        "header_main": "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4f46e5, stop:1 #7c3aed)",
+        "accent": "#6366f1", "accent2": "#a855f7",
+        "header_main": "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #6366f1, stop:1 #a855f7)",
         "header_user": "#e0e7ff", "header_border": "rgba(255,255,255,0.16)",
         "th_bg": "#e8effb", "th_text": "#1e293b",
         "alt_row": "#f5f8ff", "sel_row": "#dbe7ff", "sel_text": "#0f2440",
@@ -63,8 +63,8 @@ _PALETTES: dict[str, dict[str, str]] = {
         "menu_bg": "#1e293b", "menu_border": "#334155", "menu_text": "#e2e8f0",
         "menu_hover": "#334155",
         "chip_hover": "rgba(255,255,255,0.14)",
-        "accent": "#6366f1", "accent2": "#8b5cf6",
-        "header_main": "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4338ca, stop:1 #6d28d9)",
+        "accent": "#6366f1", "accent2": "#a855f7",
+        "header_main": "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4f46e5, stop:1 #9333ea)",
         "header_user": "#ddd6fe", "header_border": "rgba(255,255,255,0.10)",
         "th_bg": "#243049", "th_text": "#e2e8f0",
         "alt_row": "#1b2536", "sel_row": "#1d4ed8", "sel_text": "#ffffff",
@@ -79,7 +79,11 @@ _TEMPLATE = Template(
 * { font-family: 'Segoe UI', 'Tahoma', sans-serif; font-size: 13px; color: $text; }
 
 QMainWindow, QDialog { background: $window; }
+/* A QScrollArea's viewport paints its OWN opaque background (white by default),
+   which showed as a pale band behind scrolling content on the dark theme. Make
+   the viewport and the widget inside it transparent so the page surface shows. */
 QScrollArea { border: none; background: transparent; }
+QScrollArea > QWidget > QWidget { background: transparent; }
 
 /* Confirmation / info / error popups. Anything routed through timber.ui.design
    gets the full treatment; this keeps a stray native QMessageBox in family. */
@@ -91,8 +95,9 @@ QMessageBox QPushButton { min-width: 100px; padding: 9px 20px; margin: 3px; }
 QFrame#dlgHead, QFrame#dlgFoot { border-left: none; border-right: none; }
 QDialog QLabel { color: $text; }
 
-/* Floating content panel that holds the active screen */
-QStackedWidget#content { background: $surface; border: 1px solid $border; border-radius: 14px; }
+/* Floating content panel that holds the active screen — borderless for a clean
+   edge (the surface/window contrast already separates it from the page). */
+QStackedWidget#content { background: $surface; border: none; border-radius: 14px; }
 
 /* Top header — a dark brand block over the sidebar, a light bar over content */
 QFrame#header { background: transparent; border: none; }
@@ -140,6 +145,21 @@ QMenu#userMenu::item {
 QMenu#userMenu::item:selected { background: $menu_hover; }
 QMenu#userMenu::icon { padding-left: 10px; }
 QMenu#userMenu::separator { height: 1px; background: $menu_border; margin: 5px 8px; }
+
+/* Generic dropdown menus (the sub-ledger "Manage" menu, context menus, etc.)
+   — without this a plain QMenu falls back to a white OS box with unreadable
+   text on the dark theme. */
+QMenu {
+    background: $menu_bg; color: $menu_text;
+    border: 1px solid $menu_border; border-radius: 10px; padding: 5px;
+}
+QMenu::item {
+    color: $menu_text; padding: 8px 22px 8px 14px;
+    border-radius: 7px; margin: 1px 2px; font-weight: 600;
+}
+QMenu::item:selected { background: $menu_hover; color: $text; }
+QMenu::item:disabled { color: $muted; }
+QMenu::separator { height: 1px; background: $menu_border; margin: 4px 8px; }
 
 /* Sidebar — dark panel with icon navigation */
 QWidget#sidebar {
@@ -202,8 +222,10 @@ QHeaderView::section {
     background: $th_bg; color: $th_text; padding: 11px 9px; border: none;
     border-bottom: 2px solid $border; font-weight: 700;
 }
-QTableWidget::item { padding: 8px 7px; }
-QTableWidget::item:selected { background: $sel_row; color: $sel_text; }
+/* NO "QTableWidget::item" / "::item:selected" rules — a stylesheet ::item rule
+   makes Qt shrink the SELECTED cell's text rect and elide ("...") numbers only
+   while a row is selected. Selection colors come from the widget palette
+   (Highlight / HighlightedText, set in table_utils.make_table) instead. */
 
 QTabWidget::pane { border: 1px solid $border; border-radius: 8px; top: -1px; background: $surface; }
 QTabBar::tab {
@@ -217,12 +239,16 @@ QTabBar::tab:hover:!selected { background: $tab_hover; }
 QGroupBox { border: 1px solid $border; border-radius: 8px; margin-top: 8px; }
 QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; color: $muted; }
 
-QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; }
-QScrollBar::handle:vertical { background: $scroll; border-radius: 5px; min-height: 24px; }
+/* Floating scrollbars: the handle is inset from the panel edge (via margin)
+   so it never collides with the rounded corner, and the track stays invisible. */
+QScrollBar:vertical { background: transparent; width: 13px; margin: 6px 3px 6px 0; }
+QScrollBar::handle:vertical { background: $scroll; border-radius: 4px; min-height: 34px; }
 QScrollBar::handle:vertical:hover { background: $scroll_hover; }
-QScrollBar:horizontal { background: transparent; height: 10px; margin: 2px; }
-QScrollBar::handle:horizontal { background: $scroll; border-radius: 5px; min-width: 24px; }
+QScrollBar:horizontal { background: transparent; height: 13px; margin: 0 6px 3px 6px; }
+QScrollBar::handle:horizontal { background: $scroll; border-radius: 4px; min-width: 34px; }
+QScrollBar::handle:horizontal:hover { background: $scroll_hover; }
 QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
 
 /* Sidebar scrollbar: slim and subtle on the light panel */
 QTreeWidget#nav QScrollBar:vertical { width: 8px; background: transparent; margin: 0; }

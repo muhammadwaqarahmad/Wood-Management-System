@@ -10,14 +10,13 @@ from __future__ import annotations
 from typing import Callable
 
 from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QColor, QDesktopServices
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
     QFileDialog,
     QFrame,
-    QGraphicsDropShadowEffect,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -59,75 +58,6 @@ def _t(key: str) -> str:
     return r if r else key
 
 
-def _input_style() -> str:
-    return (
-        f"QComboBox,QSpinBox{{background:{_c('input_bg')};border:1px solid {_c('input_border')};"
-        f"border-radius:8px;padding:6px 8px;color:{_c('text')};min-height:20px;}}"
-        f"QComboBox:focus,QSpinBox:focus{{border:1px solid {_c('accent')};}}"
-        f"QComboBox QAbstractItemView{{background:{_c('input_bg')};color:{_c('text')};"
-        f"selection-background-color:{_c('accent')};selection-color:#ffffff;}}"
-    )
-
-
-def _btn_style(kind: str = "ghost") -> str:
-    if kind == "primary":
-        return (f"QPushButton{{background:{_c('accent')};color:#fff;border:none;border-radius:9px;"
-                "padding:9px 20px;font-weight:800;}"
-                "QPushButton:disabled{background:#94a3b8;color:#e2e8f0;}")
-    return (f"QPushButton{{background:{_c('surface')};color:{_c('text')};"
-            f"border:1px solid {_c('border')};border-radius:9px;padding:8px 16px;font-weight:700;}}"
-            f"QPushButton:hover{{background:{_c('tab_bg')};}}"
-            f"QPushButton:disabled{{color:{_c('muted')};}}")
-
-
-class _Card(QFrame):
-    """Rounded panel with an icon + title, matching the other pages."""
-
-    def __init__(self, title: str, icon_name: str = "", subtitle: str = ""):
-        super().__init__()
-        self.setObjectName("setCard")
-        self.setStyleSheet(
-            "#setCard{background:" + _c("surface") + ";border:1px solid "
-            + _c("border") + ";border-radius:16px;}")
-        eff = QGraphicsDropShadowEffect(self)
-        eff.setBlurRadius(18); eff.setXOffset(0); eff.setYOffset(2)
-        eff.setColor(QColor(15, 23, 42, 40 if theme.get_theme() == "dark" else 24))
-        self.setGraphicsEffect(eff)
-        self.box = QVBoxLayout(self)
-        self.box.setContentsMargins(22, 18, 22, 20)
-        self.box.setSpacing(14)
-
-        head = QHBoxLayout(); head.setSpacing(9)
-        if icon_name:
-            ic = QLabel()
-            try:
-                ic.setPixmap(icons.pixmap(icon_name, _c("accent"), 18))
-            except Exception:  # noqa: BLE001
-                pass
-            head.addWidget(ic)
-        h = QLabel(title)
-        h.setStyleSheet(f"color:{_c('text')};font-size:15px;font-weight:800;")
-        head.addWidget(h); head.addStretch()
-        self.box.addLayout(head)
-        if subtitle:
-            sub = QLabel(subtitle)
-            sub.setWordWrap(True)
-            sub.setStyleSheet(f"color:{_c('muted')};font-size:12px;")
-            self.box.addWidget(sub)
-
-    def add(self, w):
-        self.box.addWidget(w)
-
-    def addL(self, lay):
-        self.box.addLayout(lay)
-
-
-def _field_label(text: str) -> QLabel:
-    lbl = QLabel(text.upper())
-    lbl.setStyleSheet(f"color:{_c('muted')};font-size:11px;font-weight:700;letter-spacing:0.5px;")
-    return lbl
-
-
 class SettingsScreen(QWidget):
     def __init__(
         self,
@@ -148,43 +78,45 @@ class SettingsScreen(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setStyleSheet("QScrollArea{background:transparent;}")
+        scroll.setStyleSheet("QScrollArea{background:transparent;border:none;} QScrollArea > QWidget > QWidget{background:transparent;}")
         body = QWidget()
         root = QVBoxLayout(body)
-        root.setContentsMargins(2, 4, 2, 10)
+        # Side inset so the cards sit off the panel's rounded edge, consistent
+        # with the other pages.
+        root.setContentsMargins(22, 8, 22, 14)
         root.setSpacing(16)
         scroll.setWidget(body)
         outer.addWidget(scroll, 1)
 
         # ---------------- Appearance ----------------
-        appearance = _Card(_t("settings"), "settings")
+        appearance = design.Card(_t("settings"), "settings")
         grid = QGridLayout(); grid.setHorizontalSpacing(18); grid.setVerticalSpacing(6)
         self.lang_combo = QComboBox()
-        self.lang_combo.setStyleSheet(_input_style())
+        self.lang_combo.setStyleSheet(design.input_style())
         for code, name in i18n.LANGUAGES.items():
             self.lang_combo.addItem(name, code)
         self.lang_combo.setCurrentIndex(self.lang_combo.findData(i18n.get_language()))
         self.theme_combo = QComboBox()
-        self.theme_combo.setStyleSheet(_input_style())
+        self.theme_combo.setStyleSheet(design.input_style())
         for code, name in theme.THEMES.items():
             self.theme_combo.addItem(_t(code), code)
         self.theme_combo.setCurrentIndex(self.theme_combo.findData(theme.get_theme()))
-        grid.addWidget(_field_label(_t("choose_language")), 0, 0)
-        grid.addWidget(_field_label(_t("theme")), 0, 1)
+        grid.addWidget(design.field_label(_t("choose_language")), 0, 0)
+        grid.addWidget(design.field_label(_t("theme")), 0, 1)
         grid.addWidget(self.lang_combo, 1, 0)
         grid.addWidget(self.theme_combo, 1, 1)
         grid.setColumnStretch(0, 1); grid.setColumnStretch(1, 1); grid.setColumnStretch(2, 2)
         appearance.addL(grid)
         self.apply_btn = QPushButton(_t("apply"))
         self.apply_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.apply_btn.setStyleSheet(_btn_style("primary"))
+        self.apply_btn.setStyleSheet(design.btn("primary"))
         self.apply_btn.clicked.connect(self._apply)
         row = QHBoxLayout(); row.addWidget(self.apply_btn); row.addStretch()
         appearance.addL(row)
         root.addWidget(appearance)
 
         # ---------------- Backup folder ----------------
-        folder_card = _Card(_t("backup_folder"), "database", _t("google_backup_hint"))
+        folder_card = design.Card(_t("backup_folder"), "database", _t("google_backup_hint"))
         frow = QHBoxLayout(); frow.setSpacing(10)
         self.folder_label = QLabel(str(backup.get_backup_dir()))
         self.folder_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -196,7 +128,7 @@ class SettingsScreen(QWidget):
         self.open_folder_btn = QPushButton(_t("open_folder"))
         for b in (self.change_folder_btn, self.open_folder_btn):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setStyleSheet(_btn_style())
+            b.setStyleSheet(design.btn())
         self.change_folder_btn.clicked.connect(self._change_folder)
         self.open_folder_btn.clicked.connect(self._open_folder)
         frow.addWidget(self.folder_label, 1)
@@ -206,7 +138,7 @@ class SettingsScreen(QWidget):
         root.addWidget(folder_card)
 
         # ---------------- Automatic backups ----------------
-        auto = _Card(_t("auto_backup_on_close"), "history")
+        auto = design.Card(_t("auto_backup_on_close"), "history")
         agrid = QGridLayout(); agrid.setHorizontalSpacing(18); agrid.setVerticalSpacing(6)
         self.auto_close_check = QCheckBox(_t("auto_backup_on_close_hint"))
         self.auto_close_check.setChecked(backup.get_auto_on_close())
@@ -225,10 +157,10 @@ class SettingsScreen(QWidget):
         self.keep_spin.setValue(backup.get_keep_days())
         self.keep_spin.valueChanged.connect(backup.set_keep_days)
         for s in (self.interval_spin, self.keep_spin):
-            s.setStyleSheet(_input_style())
-        agrid.addWidget(_field_label(_t("backup_every")), 0, 0)
-        agrid.addWidget(_field_label(_t("keep_backups")), 0, 1)
-        agrid.addWidget(_field_label(_t("last_backup")), 0, 2)
+            s.setStyleSheet(design.input_style())
+        agrid.addWidget(design.field_label(_t("backup_every")), 0, 0)
+        agrid.addWidget(design.field_label(_t("keep_backups")), 0, 1)
+        agrid.addWidget(design.field_label(_t("last_backup")), 0, 2)
         agrid.addWidget(self.interval_spin, 1, 0)
         agrid.addWidget(self.keep_spin, 1, 1)
         self.last_backup_label = QLabel("")
@@ -240,11 +172,11 @@ class SettingsScreen(QWidget):
         root.addWidget(auto)
 
         # ---------------- Backup / restore actions ----------------
-        actions = _Card(_t("backup_now"), "file-check")
+        actions = design.Card(_t("backup_now"), "file-check")
         arow = QHBoxLayout(); arow.setSpacing(10)
         self.backup_btn = QPushButton(_t("backup_now"))
         self.backup_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.backup_btn.setStyleSheet(_btn_style("primary"))
+        self.backup_btn.setStyleSheet(design.btn("primary"))
         self.backup_btn.clicked.connect(self._backup)
         arow.addWidget(self.backup_btn)
         arow.addStretch()
@@ -253,30 +185,30 @@ class SettingsScreen(QWidget):
         rrow = QHBoxLayout(); rrow.setSpacing(10)
         self.restore_combo = QComboBox()
         self.restore_combo.setMinimumWidth(260)
-        self.restore_combo.setStyleSheet(_input_style())
+        self.restore_combo.setStyleSheet(design.input_style())
         self.restore_btn = QPushButton(_t("restore"))
         self.restore_file_btn = QPushButton(_t("restore_from_file"))
         for b in (self.restore_btn, self.restore_file_btn):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setStyleSheet(_btn_style())
+            b.setStyleSheet(design.btn())
         self.restore_btn.clicked.connect(self._restore_selected)
         self.restore_file_btn.clicked.connect(self._restore)
         rrow.addWidget(self.restore_combo, 1)
         rrow.addWidget(self.restore_btn)
         rrow.addWidget(self.restore_file_btn)
         col = QVBoxLayout(); col.setSpacing(6)
-        col.addWidget(_field_label(_t("choose_backup")))
+        col.addWidget(design.field_label(_t("choose_backup")))
         col.addLayout(rrow)
         actions.addL(col)
         root.addWidget(actions)
 
         # ---------------- Audit log ----------------
         # Reached from here rather than sitting as its own top-level page.
-        audit = _Card(_t("audit_log"), "history", _t("audit_log_hint"))
+        audit = design.Card(_t("audit_log"), "history", _t("audit_log_hint"))
         arow2 = QHBoxLayout(); arow2.setSpacing(10)
         self.audit_btn = QPushButton(_t("audit_log"))
         self.audit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.audit_btn.setStyleSheet(_btn_style("primary"))
+        self.audit_btn.setStyleSheet(design.btn("primary"))
         self.audit_btn.setIcon(icons.icon("history", "#ffffff", 15))
         self.audit_btn.clicked.connect(
             lambda: self._on_open_audit() if self._on_open_audit else None

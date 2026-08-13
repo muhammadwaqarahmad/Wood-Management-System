@@ -782,27 +782,38 @@ class DayEntry:
     party_name: str
     detail: str
     amount: Decimal
+    time: str = ""   # HH:MM the entry was recorded — for chronological display
 
 
 def daily_book(session: Session, day: date) -> list[DayEntry]:
-    entries: list[DayEntry] = []
+    """Every purchase, sale and payment on one day, in the ORDER THEY HAPPENED
+    (by entry time), not grouped by type — so the book reads like a timeline."""
+    from datetime import datetime as _dt
 
+    def _hm(dt) -> str:
+        return dt.strftime("%H:%M") if dt else ""
+
+    # (sort_key, DayEntry) — sort by when it was recorded (created_at).
+    events: list[tuple[datetime, DayEntry]] = []
     for t in session.scalars(
         select(BapariTxn).where(BapariTxn.txn_date == day, BapariTxn.is_void.is_(False))
     ):
-        entries.append(
-            DayEntry("Purchase", t.party.name, f"{t.weight:g} @ {t.rate:g}", t.net_amount)
-        )
+        events.append((t.created_at or _dt.min,
+                       DayEntry("Purchase", t.party.name,
+                                f"{t.weight:g} @ {t.rate:g}", t.net_amount,
+                                _hm(t.created_at))))
     for t in session.scalars(
         select(FactoryTxn).where(FactoryTxn.txn_date == day, FactoryTxn.is_void.is_(False))
     ):
-        entries.append(
-            DayEntry("Sale", t.party.name, f"{t.weight:g} @ {t.rate:g}", t.net_amount)
-        )
+        events.append((t.created_at or _dt.min,
+                       DayEntry("Sale", t.party.name,
+                                f"{t.weight:g} @ {t.rate:g}", t.net_amount,
+                                _hm(t.created_at))))
     for p in session.scalars(
         select(Payment).where(Payment.txn_date == day, Payment.is_void.is_(False))
     ):
-        entries.append(
-            DayEntry(f"Payment {p.direction}", p.party.name, p.method, p.amount)
-        )
-    return entries
+        events.append((p.created_at or _dt.min,
+                       DayEntry(f"Payment {p.direction}", p.party.name,
+                                p.method, p.amount, _hm(p.created_at))))
+    events.sort(key=lambda e: e[0])
+    return [e for _, e in events]

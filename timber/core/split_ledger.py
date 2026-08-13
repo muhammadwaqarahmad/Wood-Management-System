@@ -24,11 +24,61 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from timber.core.calculations import money
-from timber.db.models import FactoryTxn, Party, Payment
+from timber.db.models import FactorySplitRate, FactoryTxn, Party, Payment, WoodType
 from timber.db.models.payment import settles_debt
 from timber.db.models.party import PARTY_FACTORY
 
 ZERO = Decimal("0.00")
+
+
+def split_rate_map(session: Session, factory_id: int) -> dict[int, Decimal]:
+    """``{wood_type_id: split_rate}`` for a factory. A wood type absent from
+    the map gets no split — its whole rate stays on the weekly (left) side."""
+    rows = session.scalars(
+        select(FactorySplitRate).where(FactorySplitRate.factory_id == factory_id)
+    )
+    return {r.wood_type_id: money(r.split_rate) for r in rows}
+
+
+def traded_wood_types(session: Session, factory_id: int) -> list[tuple[int, str]]:
+    """Distinct wood types this factory has actually traded (non-void loads),
+    ordered by name — the woods worth setting a split rate for."""
+    rows = session.execute(
+        select(WoodType.id, WoodType.name)
+        .join(FactoryTxn, FactoryTxn.wood_type_id == WoodType.id)
+        .where(FactoryTxn.party_id == factory_id, FactoryTxn.is_void.is_(False))
+        .distinct()
+        .order_by(WoodType.name)
+    ).all()
+    return [(int(r[0]), r[1]) for r in rows]
+
+
+def set_split_rates(
+    session: Session, factory_id: int, rates: dict[int, Decimal]
+) -> None:
+    """Upsert a factory's per-wood split rates. A wood set to 0 (or below) is
+    removed — 0 means 'no split, whole rate on the weekly side'. Does NOT
+    commit; the caller owns the transaction."""
+    existing = {
+        r.wood_type_id: r
+        for r in session.scalars(
+            select(FactorySplitRate).where(
+                FactorySplitRate.factory_id == factory_id
+            )
+        )
+    }
+    for wood_id, rate in rates.items():
+        val = money(rate or 0)
+        row = existing.get(wood_id)
+        if val > 0:
+            if row is None:
+                session.add(FactorySplitRate(
+                    factory_id=factory_id, wood_type_id=wood_id, split_rate=val,
+                ))
+            else:
+                row.split_rate = val
+        elif row is not None:
+            session.delete(row)
 
 
 @dataclass
@@ -53,6 +103,8 @@ class SplitEntry:
     right_balance: Decimal = ZERO
     detail: str = ""          # payment route (which bank → which bank / Cash)
     ref: str = ""             # payment reference no / notes
+    booked_date: date | None = None  # payment ENTRY date, if it differs from
+    #                                  the received date (txn_date) shown
 
 
 @dataclass
@@ -85,7 +137,8 @@ def factory_split_statement(
         raise ValueError("Factory not found.")
     from timber.core.labels import payment_route
 
-    split = money(party.split_rate or 0)
+    split = money(party.split_rate or 0)  # enrolment flag / display only
+    rates = split_rate_map(session, factory_id)  # per-wood split amounts
 
     loads = list(session.scalars(
         select(FactoryTxn).where(
@@ -118,7 +171,15 @@ def factory_split_statement(
         if kind == "load":
             bill = money(obj.bill)
             rate = money(obj.rate)
-            s = min(split, rate) if split > 0 else ZERO
+            # Split amount for THIS load's wood type. A configured wood uses its
+            # own rate (0 / unconfigured → whole rate stays weekly). A legacy
+            # load with NO wood type falls back to the factory's flat rate so
+            # historical balances never change.
+            if obj.wood_type_id is not None:
+                wsplit = rates.get(obj.wood_type_id, ZERO)
+            else:
+                wsplit = split
+            s = min(wsplit, rate) if wsplit > 0 else ZERO
             right_amt = money(obj.weight * s)
             if right_amt > bill:
                 right_amt = bill
@@ -136,6 +197,9 @@ def factory_split_statement(
                 freight=freight, left_net=left_net,
                 right_rate=s, right_amount=right_amt,
                 left_balance=bal_left, right_balance=bal_right,
+                # Trade entry date = the day it was booked (auto). Shown beneath
+                # the actual trade date when they differ (e.g. a late-entered load).
+                booked_date=obj.created_at.date() if obj.created_at else None,
             )
         else:
             # A refund to the factory (direction "out") is money going back, so
@@ -156,6 +220,7 @@ def factory_split_statement(
                 left_balance=bal_left, right_balance=bal_right,
                 detail=payment_route(obj, party.name),
                 ref=" ".join(x for x in (obj.reference_no, obj.notes) if x),
+                booked_date=obj.entry_date,
             )
 
         in_range = (start is None or entry_date >= start) and (

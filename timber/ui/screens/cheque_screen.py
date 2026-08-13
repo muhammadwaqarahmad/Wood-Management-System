@@ -46,6 +46,10 @@ class ChequeScreen(QWidget):
         can = has_permission(current_user.role, Permission.MANAGE_PAYMENTS)
 
         root = QVBoxLayout(self)
+        # Side inset so tiles / filters / table sit off the panel's rounded
+        # edge, consistent with the other pages.
+        root.setContentsMargins(22, 8, 22, 14)
+        root.setSpacing(12)
 
         # Cheque balance + a live status breakdown, as tiles.
         tiles = QHBoxLayout()
@@ -91,14 +95,13 @@ class ChequeScreen(QWidget):
         root.addWidget(self.table)
 
         buttons = QHBoxLayout()
-        self.clear_btn = QPushButton(i18n.tr("clear_cheque"))
-        self.bounce_btn = QPushButton(i18n.tr("bounce_cheque"))
-        self.clear_btn.clicked.connect(self._clear)
-        self.bounce_btn.clicked.connect(self._bounce)
-        self.bounce_btn.setStyleSheet(design.btn("danger"))
-        for b in (self.clear_btn, self.bounce_btn):
-            b.setEnabled(can)
-            buttons.addWidget(b)
+        self.manage_btn = design.manage_button([
+            (i18n.tr("clear_cheque"), self._clear, "check"),
+            None,
+            (i18n.tr("bounce_cheque"), self._bounce, "x", "danger"),
+        ], parent=self)
+        self.manage_btn.setEnabled(can)
+        buttons.addWidget(self.manage_btn)
         buttons.addStretch()
         root.addWidget(design.toolbar_wrap(buttons))
 

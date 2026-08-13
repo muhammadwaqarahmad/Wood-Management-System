@@ -555,28 +555,27 @@ class PartyTypePanel(QWidget):
 
         buttons = QHBoxLayout()
         buttons.setSpacing(10)
-        self.add_btn = QPushButton(i18n.tr("add"))
-        self.edit_btn = QPushButton(i18n.tr("edit"))
-        self.toggle_btn = QPushButton(i18n.tr("deactivate"))
-        self.delete_btn = QPushButton(i18n.tr("delete"))
-        self.add_btn.clicked.connect(self._add)
-        self.edit_btn.clicked.connect(self._edit)
-        self.toggle_btn.clicked.connect(self._toggle)
-        self.delete_btn.clicked.connect(self._delete)
-        self.add_btn.setStyleSheet(_btn("primary"))
-        self.edit_btn.setStyleSheet(_btn())
-        self.toggle_btn.setStyleSheet(_btn())
-        self.delete_btn.setStyleSheet(_btn("danger"))
-        for b in (self.add_btn, self.edit_btn, self.toggle_btn, self.delete_btn):
-            b.setCursor(Qt.CursorShape.PointingHandCursor)
-            buttons.addWidget(b)
+        # All party actions live in one tidy "Manage" dropdown (add / edit /
+        # deactivate / delete), keeping the toolbar clean and consistent with
+        # the rest of the app.
+        self.manage_btn = design.manage_button([
+            (i18n.tr("add"), self._add, "plus"),
+            (i18n.tr("edit"), self._edit, "pencil"),
+            (i18n.tr("deactivate"), self._toggle, "eye-off"),
+            None,
+            (i18n.tr("delete"), self._delete, "trash", "danger"),
+        ], parent=self)
+        buttons.addWidget(self.manage_btn)
         buttons.addStretch()
         root.addWidget(design.toolbar_wrap(buttons))
 
+        # Per-action permissions: add/edit/deactivate need MANAGE_SETTINGS,
+        # delete needs DELETE_RECORD.
+        _acts = self.manage_btn._manage_actions  # [add, edit, deactivate, delete]
         if not has_permission(current_user.role, Permission.MANAGE_SETTINGS):
-            for b in (self.add_btn, self.edit_btn, self.toggle_btn):
-                b.setEnabled(False)
-        self.delete_btn.setEnabled(
+            for a in _acts[:3]:
+                a.setEnabled(False)
+        _acts[3].setEnabled(
             has_permission(current_user.role, Permission.DELETE_RECORD)
         )
 
@@ -802,7 +801,9 @@ class PartyManagerScreen(QWidget):
 
         root = QVBoxLayout(self)
         # The page title already appears in the shared page bar — no duplicate.
-        root.setContentsMargins(0, 2, 0, 0)
+        # Side inset so the tab bar + card sit off the panel's rounded edge,
+        # consistent with the other pages.
+        root.setContentsMargins(22, 8, 22, 14)
         root.setSpacing(0)
 
         # Panels are built ON FIRST VIEW. Building all four up front meant a

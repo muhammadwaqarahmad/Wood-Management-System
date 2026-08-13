@@ -22,11 +22,9 @@ class VehicleHistoryScreen(QWidget):
     def __init__(self, current_user: CurrentUser, parent=None) -> None:
         super().__init__(parent)
         root = QVBoxLayout(self)
-
-        header = QLabel(i18n.tr("vehicle_history"))
-        header.setStyleSheet(
-            f"color:{design.c('text')};font-size:18px;font-weight:800;")
-        root.addWidget(header)
+        # Side inset; no in-page title (the page bar shows the page name).
+        root.setContentsMargins(22, 8, 22, 14)
+        root.setSpacing(12)
 
         top = QHBoxLayout()
         top.addWidget(QLabel(f"{i18n.tr('vehicle_no')}:"))

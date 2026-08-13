@@ -580,16 +580,20 @@ class MainWindow(QMainWindow):
         # then the floating content "panel" below it.
         content_wrap = QWidget()
         wrap_layout = QVBoxLayout(content_wrap)
-        wrap_layout.setContentsMargins(18, 10, 18, 16)
-        wrap_layout.setSpacing(14)
+        # Tight, even gutter around the floating panel; the page bar sits just
+        # under the header and close to the panel (was a wide, uneven band).
+        wrap_layout.setContentsMargins(16, 8, 16, 14)
+        wrap_layout.setSpacing(8)
 
         page_bar = QFrame()
         page_bar.setObjectName("pageBar")
         # A guaranteed height so the 23px title can never be clipped, plus real
         # padding — with 0 top/bottom it sat crushed against the header.
-        page_bar.setMinimumHeight(52)
+        page_bar.setMinimumHeight(48)
         pbl = QHBoxLayout(page_bar)
-        pbl.setContentsMargins(6, 6, 4, 6)
+        # Left inset matches the panel's content inset so the title lines up
+        # with the cards below it; right inset small so export hugs the edge.
+        pbl.setContentsMargins(6, 4, 6, 4)
         pbl.setSpacing(10)
         self._page_title = QLabel("")
         self._page_title.setObjectName("pageTitle")
@@ -660,7 +664,8 @@ class MainWindow(QMainWindow):
         fled = self._add_screen(
             i18n.tr("factory_ledger"), lambda: FactoryLedgerScreen(self.current_user), "factory"
         )
-        # The split sub-ledger is a subpage of the Factory Ledger.
+        # The split sub-ledger is a subpage of the Factory Ledger. It now holds
+        # BOTH the detailed ledger and the weekly settlement (a view toggle).
         self._add_screen(
             i18n.tr("factory_sub_ledger"), lambda: FactorySplitLedgerScreen(self.current_user),
             "book-text", parent=fled,

@@ -108,7 +108,9 @@ class TransfersScreen(QWidget):
         can = has_permission(current_user.role, Permission.MANAGE_PAYMENTS)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(4, 4, 4, 4)
+        # Side inset so tiles / history card sit off the panel's rounded edge,
+        # consistent with the other pages.
+        root.setContentsMargins(22, 8, 22, 14)
         root.setSpacing(16)
 
         # The transfer form now opens as a DIALOG from a button — the same
@@ -159,19 +161,15 @@ class TransfersScreen(QWidget):
         history.box.setStretch(history.box.count() - 1, 1)
 
         btns = QHBoxLayout()
-        btns.addWidget(self.add_btn)
-        self.edit_btn = QPushButton(i18n.tr("edit"))
-        self.edit_btn.setStyleSheet(design.btn("ghost"))
-        self.edit_btn.setIcon(icons.icon("pencil", design.c("text"), 15))
-        self.delete_btn = QPushButton(i18n.tr("delete"))
-        self.delete_btn.setStyleSheet(design.btn("danger"))
-        self.delete_btn.setIcon(icons.icon("trash", "#ffffff", 15))
-        self.edit_btn.clicked.connect(self._edit)
-        self.delete_btn.clicked.connect(self._delete)
-        self.edit_btn.setEnabled(can)
-        self.delete_btn.setEnabled(can)
-        btns.addWidget(self.edit_btn)
-        btns.addWidget(self.delete_btn)
+        btns.addWidget(self.add_btn)   # primary "Transfer money" stays prominent
+        # Edit / delete of existing transfers live in a Manage dropdown.
+        self.manage_btn = design.manage_button([
+            (i18n.tr("edit"), self._edit, "pencil"),
+            None,
+            (i18n.tr("delete"), self._delete, "trash", "danger"),
+        ], parent=self)
+        self.manage_btn.setEnabled(can)
+        btns.addWidget(self.manage_btn)
         btns.addStretch()
         history.add(design.toolbar_wrap(btns))
         root.addWidget(history, 1)

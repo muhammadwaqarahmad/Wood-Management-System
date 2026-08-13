@@ -11,6 +11,7 @@ from timber.db.models.bank_account import BankAccount
 from timber.db.models.bapari_txn import BapariTxn
 from timber.db.models.combined_txn import CombinedTxn
 from timber.db.models.expense import Expense
+from timber.db.models.factory_split_rate import FactorySplitRate
 from timber.db.models.factory_txn import FactoryTxn
 from timber.db.models.loan import Loan, LoanRepayment
 from timber.db.models.location import Location
@@ -32,6 +33,7 @@ __all__ = [
     "BapariTxn",
     "CombinedTxn",
     "Expense",
+    "FactorySplitRate",
     "FactoryTxn",
     "Loan",
     "LoanRepayment",

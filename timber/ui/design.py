@@ -62,6 +62,23 @@ def refresh() -> None:
     ZERO = _P.get("muted", "#64748b")
 
 
+# ----------------------------------------------------------------- layout ---
+# Shared spacing so every page shares one rhythm. Content already sits inside
+# the framed content panel, so the outer page margin stays small.
+PAGE_MARGIN = 2      # outer page margin
+PAGE_GAP = 14        # gap between major blocks (toolbar / cards / table)
+CARD_GAP = 10        # gap between cards in a KPI row
+
+
+def page_root(widget=None) -> QVBoxLayout:
+    """A page's root layout with the standard margins + spacing — call this
+    instead of a bare QVBoxLayout so every screen lines up the same way."""
+    lay = QVBoxLayout(widget) if widget is not None else QVBoxLayout()
+    lay.setContentsMargins(PAGE_MARGIN, PAGE_MARGIN + 4, PAGE_MARGIN, PAGE_MARGIN)
+    lay.setSpacing(PAGE_GAP)
+    return lay
+
+
 def c(key: str) -> str:
     """A colour from the active palette.
 
@@ -119,25 +136,25 @@ def btn(kind: str = "ghost") -> str:
         return (
             "QPushButton{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 "
             f"{c('accent2')},stop:1 {c('accent')});color:#fff;border:none;"
-            "border-radius:9px;padding:9px 20px;font-weight:800;}"
+            "border-radius:11px;padding:9px 20px;font-weight:800;}"
             f"QPushButton:hover{{background:{c('accent')};}}"
             "QPushButton:disabled{background:#94a3b8;color:#e2e8f0;}")
     if kind == "danger":
         return ("QPushButton{background:#e11d48;color:#fff;border:none;"
-                "border-radius:9px;padding:9px 20px;font-weight:800;}"
+                "border-radius:11px;padding:9px 20px;font-weight:800;}"
                 "QPushButton:hover{background:#be123c;}"
                 "QPushButton:disabled{background:#94a3b8;color:#e2e8f0;}")
     if kind == "success":
         return ("QPushButton{background:#059669;color:#fff;border:none;"
-                "border-radius:9px;padding:9px 20px;font-weight:800;}"
+                "border-radius:11px;padding:9px 20px;font-weight:800;}"
                 "QPushButton:hover{background:#047857;}"
                 "QPushButton:disabled{background:#94a3b8;color:#e2e8f0;}")
     if kind == "subtle":
         return (f"QPushButton{{background:transparent;color:{c('muted')};border:none;"
-                "border-radius:9px;padding:8px 14px;font-weight:700;}"
+                "border-radius:11px;padding:8px 14px;font-weight:700;}"
                 f"QPushButton:hover{{color:{c('accent')};background:{tint(c('accent'), 26)};}}")
     return (f"QPushButton{{background:{c('surface')};color:{c('text')};"
-            f"border:1px solid {c('border')};border-radius:9px;padding:8px 16px;font-weight:700;}}"
+            f"border:1px solid {c('border')};border-radius:11px;padding:8px 16px;font-weight:700;}}"
             f"QPushButton:hover{{background:{c('tab_bg')};border-color:{c('accent')};}}"
             f"QPushButton:disabled{{color:{c('muted')};}}")
 
@@ -147,7 +164,7 @@ def input_style() -> str:
     return (
         "QComboBox,QLineEdit,QSpinBox,QDoubleSpinBox,QDateEdit,QPlainTextEdit,QTextEdit{"
         f"background:{c('input_bg')};border:1px solid {c('input_border')};"
-        f"border-radius:9px;padding:8px 11px;color:{c('text')};min-height:20px;}}"
+        f"border-radius:11px;padding:8px 11px;color:{c('text')};min-height:20px;}}"
         "QComboBox:focus,QLineEdit:focus,QSpinBox:focus,QDoubleSpinBox:focus,"
         f"QDateEdit:focus,QPlainTextEdit:focus,QTextEdit:focus{{border:1px solid {c('accent')};}}"
         "QComboBox:hover,QLineEdit:hover,QSpinBox:hover,QDoubleSpinBox:hover,"
@@ -158,9 +175,58 @@ def input_style() -> str:
         f"selection-background-color:{c('accent')};selection-color:#ffffff;}}")
 
 
+def manage_button(actions, parent=None, label: str = "", icon_name: str = "settings"):
+    """A compact, themed **Manage** dropdown that houses a screen's management
+    actions (add / edit / remove …) so toolbars stay clean and consistent
+    across the whole app.
+
+    ``actions`` is a list where each item is one of:
+      * ``(label, callback)``
+      * ``(label, callback, icon_name)``
+      * ``(label, callback, icon_name, "danger")`` — tints the row red
+      * ``None`` — a separator
+
+    Returns the ``QPushButton`` (its ``QMenu`` is attached via ``setMenu``)."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QMenu, QPushButton
+
+    b = QPushButton(label or t("manage"), parent)
+    b.setCursor(Qt.CursorShape.PointingHandCursor)
+    # Ghost look; hide Qt's own menu arrow — the label already carries a "▾".
+    b.setStyleSheet(btn("ghost") + "QPushButton::menu-indicator{image:none;width:0;}")
+    if icon_name:
+        try:
+            b.setIcon(icons.icon(icon_name, c("text"), 15))
+        except Exception:  # noqa: BLE001 - icon is decoration only
+            pass
+
+    menu = QMenu(b)
+    b._manage_actions = []  # QActions in order (skipping separators) for callers
+    for item in actions:
+        if item is None:
+            menu.addSeparator()
+            continue
+        lbl, cb = item[0], item[1]
+        ic = item[2] if len(item) > 2 else None
+        danger = len(item) > 3 and item[3] == "danger"
+        colour = "#e11d48" if danger else c("text")
+        act = None
+        if ic:
+            try:
+                act = menu.addAction(icons.icon(ic, colour, 16), lbl, cb)
+            except Exception:  # noqa: BLE001
+                act = None
+        if act is None:
+            act = menu.addAction(lbl, cb)
+        b._manage_actions.append(act)
+    b.setMenu(menu)
+    b._manage_menu = menu  # keep a reference so the menu isn't garbage-collected
+    return b
+
+
 def card_style(object_name: str = "dsCard") -> str:
     return ("#" + object_name + "{background:" + c("surface") + ";border:1px solid "
-            + c("border") + ";border-radius:16px;}")
+            + c("border") + ";border-radius:18px;}")
 
 
 def table_style() -> str:
@@ -171,9 +237,13 @@ def table_style() -> str:
         f"alternate-background-color:{c('alt_row')};}}"
         f"QHeaderView::section{{background:{c('th_bg')};color:{c('th_text')};"
         f"padding:11px 9px;border:none;border-bottom:2px solid {c('border')};"
-        "font-weight:700;}"
-        "QTableWidget::item{padding:8px 7px;}"
-        f"QTableWidget::item:selected{{background:{c('sel_row')};color:{c('sel_text')};}}")
+        "font-weight:700;}")
+        # NOTE: deliberately NO "QTableWidget::item" / "::item:selected" rules.
+        # A stylesheet "::item" rule makes Qt (QStyleSheetStyle) recompute the
+        # SELECTED cell's text rectangle and elide ("...") full numbers only
+        # while a row is selected. Cell padding comes from the delegate and row
+        # height instead, and selection colors come from the widget PALETTE
+        # (set in table_utils.make_table) — no elision on any platform.
 
 
 # ------------------------------------------------------------------ widgets ---
@@ -215,7 +285,17 @@ class Card(QFrame):
             head = QHBoxLayout()
             head.setSpacing(9)
             if icon_name:
-                head.addWidget(icon_label(icon_name))
+                chip = QLabel()
+                chip.setFixedSize(26, 26)
+                chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                chip.setStyleSheet(
+                    "border-radius:8px;background:qlineargradient(x1:0,y1:0,x2:1,y2:1,"
+                    f"stop:0 {c('accent')},stop:1 {tint(c('accent'), 60)});")
+                try:
+                    chip.setPixmap(icons.pixmap(icon_name, "#ffffff", 15))
+                except Exception:  # noqa: BLE001
+                    pass
+                head.addWidget(chip)
             h = QLabel(title)
             h.setStyleSheet(f"color:{c('text')};font-size:15px;font-weight:800;")
             head.addWidget(h)
@@ -247,25 +327,28 @@ class Tile(QFrame):
         accent = TONES.get(tone, TONES["slate"])
         self.setStyleSheet(
             "#dsTile{background:" + c("surface") + ";border:1px solid " + c("border")
-            + ";border-radius:16px;border-left:4px solid " + accent + ";}")
-        shadow(self, blur=20, dy=3)
+            + ";border-radius:14px;border-left:4px solid " + accent + ";}"
+            "#dsTile:hover{border-color:" + accent + ";}")
+        shadow(self, blur=18, dy=3)
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 13, 16, 14)
-        lay.setSpacing(9)
+        lay.setContentsMargins(14, 11, 14, 12)
+        lay.setSpacing(6)
 
         top = QHBoxLayout()
         top.setSpacing(9)
         chip = QLabel()
-        chip.setFixedSize(32, 32)
+        chip.setFixedSize(30, 30)
         chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        chip.setStyleSheet(f"background:{tint(accent, 38)};border-radius:9px;")
+        chip.setStyleSheet(
+            "border-radius:9px;background:qlineargradient(x1:0,y1:0,x2:1,y2:1,"
+            f"stop:0 {accent},stop:1 {tint(accent, 60)});")
         try:
-            chip.setPixmap(icons.pixmap(icon_name, accent, 17))
+            chip.setPixmap(icons.pixmap(icon_name, "#ffffff", 16))
         except Exception:  # noqa: BLE001
             pass
         cap = QLabel(label.upper())
         cap.setStyleSheet(
-            f"color:{c('muted')};font-size:11px;font-weight:700;letter-spacing:0.6px;")
+            f"color:{c('muted')};font-size:10px;font-weight:700;letter-spacing:0.6px;")
         cap.setWordWrap(True)
         top.addWidget(chip)
         top.addWidget(cap, 1)
@@ -273,51 +356,117 @@ class Tile(QFrame):
 
         self.value_label = QLabel(str(value))
         self.value_label.setStyleSheet(
-            f"color:{color or c('text')};font-size:21px;font-weight:800;")
+            f"color:{color or c('text')};font-size:20px;font-weight:800;")
         lay.addWidget(self.value_label)
 
 
-def stat_tile(caption: str, accent: str = "", icon_name: str = "") -> tuple[QFrame, QLabel]:
-    """A KPI tile whose value is written later — returns (frame, value_label).
+def stat_tile(caption: str, accent: str = "", icon_name: str = "",
+              value=None, value_color: str = "") -> tuple[QFrame, QLabel]:
+    """THE one KPI tile used across the whole app — returns (frame, value_label).
 
-    For pages that kept a running total in a plain QLabel and updated it on
-    every refresh. They can keep doing exactly that; the label just lives in a
-    tile now instead of floating on the page.
+    Accent bar + tinted icon chip + uppercase caption + big value. Leave
+    ``value`` None to fill the label later (running totals), or pass a ready
+    string to render it now. ``value_color`` overrides the value colour
+    (defaults to the accent) — e.g. neutral text, or signed green/red.
     """
     accent = accent or c("accent")
     frame = QFrame()
     frame.setObjectName("dsTile")
     frame.setStyleSheet(
         "#dsTile{background:" + c("surface") + ";border:1px solid " + c("border")
-        + ";border-radius:16px;border-left:4px solid " + accent + ";}")
-    shadow(frame, blur=20, dy=3)
+        + ";border-radius:14px;border-left:4px solid " + accent + ";}"
+        "#dsTile:hover{border-color:" + accent + ";}")
+    shadow(frame, blur=18, dy=3)
     lay = QVBoxLayout(frame)
-    lay.setContentsMargins(16, 13, 16, 14)
-    lay.setSpacing(8)
+    lay.setContentsMargins(14, 11, 14, 12)
+    lay.setSpacing(6)
 
     top = QHBoxLayout()
     top.setSpacing(9)
     if icon_name:
         chip = QLabel()
-        chip.setFixedSize(32, 32)
+        chip.setFixedSize(30, 30)
         chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        chip.setStyleSheet(f"background:{tint(accent, 38)};border-radius:9px;")
+        # Vivid gradient chip with a white glyph — the pop comes from colour,
+        # not size, so the tile stays compact.
+        chip.setStyleSheet(
+            "border-radius:9px;background:qlineargradient(x1:0,y1:0,x2:1,y2:1,"
+            f"stop:0 {accent},stop:1 {tint(accent, 60)});")
         try:
-            chip.setPixmap(icons.pixmap(icon_name, accent, 17))
+            chip.setPixmap(icons.pixmap(icon_name, "#ffffff", 16))
         except Exception:  # noqa: BLE001
             pass
         top.addWidget(chip)
     cap = QLabel(caption.upper())
     cap.setWordWrap(True)
     cap.setStyleSheet(
-        f"color:{c('muted')};font-size:11px;font-weight:700;letter-spacing:0.6px;")
+        f"color:{c('muted')};font-size:10px;font-weight:700;letter-spacing:0.6px;")
     top.addWidget(cap, 1)
     lay.addLayout(top)
 
-    value = QLabel("—")
-    value.setStyleSheet(f"color:{accent};font-size:21px;font-weight:800;")
-    lay.addWidget(value)
-    return frame, value
+    val = QLabel("—" if value is None else str(value))
+    val.setStyleSheet(
+        f"color:{value_color or accent};font-size:20px;font-weight:800;")
+    lay.addWidget(val)
+    return frame, val
+
+
+def section_header(text: str, subtitle: str = "") -> QWidget:
+    """A consistent section title — an accent tick + bold heading, with an
+    optional muted subtitle — so grouped content reads the same everywhere."""
+    box = QWidget()
+    v = QVBoxLayout(box)
+    v.setContentsMargins(2, 2, 2, 0)
+    v.setSpacing(2)
+    row = QHBoxLayout()
+    row.setSpacing(8)
+    tick = QFrame()
+    tick.setFixedSize(4, 16)
+    tick.setStyleSheet(f"background:{c('accent')};border-radius:2px;")
+    row.addWidget(tick)
+    lbl = QLabel(text)
+    lbl.setStyleSheet(f"color:{c('text')};font-size:15px;font-weight:800;")
+    row.addWidget(lbl)
+    row.addStretch()
+    v.addLayout(row)
+    if subtitle:
+        sub = QLabel(subtitle)
+        sub.setContentsMargins(12, 0, 0, 0)
+        sub.setStyleSheet(f"color:{c('muted')};font-size:12px;")
+        v.addWidget(sub)
+    return box
+
+
+def empty_state(title: str, subtitle: str = "", icon_name: str = "receipt") -> QWidget:
+    """A friendly placeholder for an empty page or section: a tinted round icon,
+    a title and an optional hint, centered — so 'nothing here' looks intentional
+    rather than broken."""
+    box = QWidget()
+    v = QVBoxLayout(box)
+    v.setContentsMargins(24, 40, 24, 40)
+    v.setSpacing(10)
+    v.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    if icon_name:
+        chip = QLabel()
+        chip.setFixedSize(60, 60)
+        chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        chip.setStyleSheet(f"background:{tint(c('accent'), 26)};border-radius:30px;")
+        try:
+            chip.setPixmap(icons.pixmap(icon_name, c("accent"), 26))
+        except Exception:  # noqa: BLE001 - icon is decoration only
+            pass
+        v.addWidget(chip, 0, Qt.AlignmentFlag.AlignHCenter)
+    head = QLabel(title)
+    head.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    head.setStyleSheet(f"color:{c('text')};font-size:15px;font-weight:700;")
+    v.addWidget(head)
+    if subtitle:
+        sub = QLabel(subtitle)
+        sub.setWordWrap(True)
+        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sub.setStyleSheet(f"color:{c('muted')};font-size:12px;")
+        v.addWidget(sub)
+    return box
 
 
 class Toolbar(QFrame):
@@ -375,7 +524,7 @@ def table_card(*widgets) -> QFrame:
     card.setObjectName("dsTableCard")
     card.setStyleSheet(
         "#dsTableCard{background:" + c("surface") + ";border:1px solid " + c("border")
-        + ";border-radius:16px;}")
+        + ";border-radius:18px;}")
     shadow(card)
     box = QVBoxLayout(card)
     box.setContentsMargins(16, 14, 16, 16)

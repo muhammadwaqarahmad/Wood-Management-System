@@ -1,6 +1,7 @@
 # ==========================================================================
-#  ONE-TIME: register the FOUR-TIMES-DAILY cloud backup as a Windows Scheduled
-#  Task with automatic CATCH-UP so a missed window is never silently lost.
+#  ONE-TIME: register the cloud backup as a Windows Scheduled Task — hourly
+#  during working hours (06:00-20:00) then every 3h overnight — with automatic
+#  CATCH-UP so a missed window is never silently lost.
 #
 #  Run this ONCE on the backup PC, in an ADMIN PowerShell:
 #      powershell -ExecutionPolicy Bypass -File .\setup-backup-schedule.ps1
@@ -28,13 +29,14 @@ $TaskName = "ASW Cloud Backup"
 $action = New-ScheduledTaskAction -Execute "powershell.exe" `
     -Argument "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File `"$ScriptPath`""
 
-# Four runs a day across office hours (8am-7pm): start of day, midday, mid-
-# afternoon, and close-of-day. The 7pm one captures the full day before closing.
-# A missed run (PC off) is caught up on next boot. Adjust if your hours change.
-$t1 = New-ScheduledTaskTrigger -Daily -At  8:00AM
-$t2 = New-ScheduledTaskTrigger -Daily -At 12:00PM
-$t3 = New-ScheduledTaskTrigger -Daily -At  4:00PM
-$t4 = New-ScheduledTaskTrigger -Daily -At  7:00PM
+# Sync EVERY HOUR during working hours (06:00-20:00), then EVERY 3 HOURS
+# overnight (23:00, 02:00, 05:00) so the cloud/mobile stays close to live all
+# day and still refreshes a few times overnight. A missed run (PC off) is
+# caught up on next boot. Adjust the hour list if your hours change.
+$hours = @(6,7,8,9,10,11,12,13,14,15,16,17,18,19,20, 23, 2, 5)
+$triggers = foreach ($h in $hours) {
+    New-ScheduledTaskTrigger -Daily -At ([datetime]::Today).AddHours($h)
+}
 
 $settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
@@ -48,9 +50,9 @@ $settings = New-ScheduledTaskSettingsSet `
 # must be installed for "all users" (their default installers do this).
 $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $t1, $t2, $t3, $t4 `
+Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $triggers `
     -Settings $settings -Principal $principal -Force | Out-Null
 
-Write-Host "Registered scheduled task '$TaskName' (08:00, 12:00, 16:00, 19:00; catch-up + retry)."
+Write-Host "Registered scheduled task '$TaskName' (hourly 06:00-20:00, then 23:00/02:00/05:00; catch-up + retry)."
 Write-Host "Test it now with:  Start-ScheduledTask -TaskName '$TaskName'"
 Write-Host "Then check D:\ASW-Backups for a new .dump and open the local 'timber' db in pgAdmin."

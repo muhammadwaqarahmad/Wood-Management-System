@@ -37,6 +37,9 @@ class SearchScreen(QWidget):
         super().__init__(parent)
         design.refresh()
         root = QVBoxLayout(self)
+        # Side inset so the search bar / results sit off the panel's rounded
+        # edge, consistent with the other pages.
+        root.setContentsMargins(22, 8, 22, 14)
         root.setSpacing(12)
 
         # --- search bar ---

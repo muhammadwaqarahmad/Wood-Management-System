@@ -85,29 +85,19 @@ class UserManagerScreen(QWidget):
         )
         bar = design.Toolbar()
         bar.spacer()
-        self.add_btn = QPushButton(i18n.tr("add"))
-        self.edit_btn = QPushButton(i18n.tr("edit"))
-        self.reset_btn = QPushButton(i18n.tr("reset_password"))
-        self.toggle_btn = QPushButton(i18n.tr("deactivate"))
-        self.delete_btn = QPushButton(i18n.tr("delete"))
-        for b, kind, ico in (
-            (self.add_btn, "primary", "plus"), (self.edit_btn, "ghost", "pencil"),
-            (self.reset_btn, "ghost", "key"), (self.toggle_btn, "ghost", "lock"),
-            (self.delete_btn, "danger", "trash"),
-        ):
-            b.setStyleSheet(design.btn(kind))
-            b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setIcon(icons.icon(ico, "#ffffff" if kind in ("primary", "danger")
-                                 else design.c("text"), 15))
-            b.setEnabled(self.can_manage)
-            bar.add(b)
-        self.add_btn.clicked.connect(self._add)
-        self.edit_btn.clicked.connect(self._edit)
-        self.reset_btn.clicked.connect(self._reset)
-        self.toggle_btn.clicked.connect(self._toggle)
-        self.delete_btn.clicked.connect(self._delete)
+        # One "Manage" dropdown for every user action, gated on MANAGE_USERS.
+        self.manage_btn = design.manage_button([
+            (i18n.tr("add"), self._add, "plus"),
+            (i18n.tr("edit"), self._edit, "pencil"),
+            (i18n.tr("reset_password"), self._reset, "key"),
+            (i18n.tr("deactivate"), self._toggle, "lock"),
+            None,
+            (i18n.tr("delete"), self._delete, "trash", "danger"),
+        ], parent=self)
+        self.manage_btn.setEnabled(self.can_manage)
+        bar.add(self.manage_btn)
         root.addWidget(bar)
-        self.table.setStyleSheet(design.table_style())
+        # (make_table already applied design.table_style().)
         root.addWidget(self.table, 1)
 
         self.refresh()

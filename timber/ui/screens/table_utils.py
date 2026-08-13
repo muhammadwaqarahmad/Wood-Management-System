@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QBrush, QColor, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QLayout,
     QLineEdit,
     QProgressBar,
+    QStyle,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -24,6 +26,22 @@ from PySide6.QtWidgets import (
 
 from timber import i18n
 from timber.ui import icons
+
+
+class _ReadableSelectionDelegate(QStyledItemDelegate):
+    """Keeps a selected row's text readable. On selection we paint every cell's
+    text in the selection's own text color instead of the cell's own
+    foreground — otherwise colored money cells (red / green / grey) keep their
+    color and vanish against the selection background. The ForegroundRole only
+    affects the Text role, so overriding Text + HighlightedText here wins."""
+
+    def initStyleOption(self, option, index):  # noqa: N802 (Qt signature)
+        super().initStyleOption(option, index)
+        if option.state & QStyle.StateFlag.State_Selected:
+            from timber.ui import design
+            col = QColor(design.c("sel_text"))
+            option.palette.setColor(QPalette.ColorRole.Text, col)
+            option.palette.setColor(QPalette.ColorRole.HighlightedText, col)
 
 
 def make_table(headers: list[str]) -> QTableWidget:
@@ -42,7 +60,30 @@ def make_table(headers: list[str]) -> QTableWidget:
     from timber.ui import design
     design.refresh()
     table.setStyleSheet(design.table_style())
+    # Lock the selection colors at the PALETTE level too (not just the
+    # stylesheet, which Qt does not always honor for selected cells), and use a
+    # delegate so selected text stays readable over any per-cell color.
+    pal = table.palette()
+    pal.setColor(QPalette.ColorRole.Highlight, QColor(design.c("sel_row")))
+    pal.setColor(QPalette.ColorRole.HighlightedText, QColor(design.c("sel_text")))
+    table.setPalette(pal)
+    table.setItemDelegate(_ReadableSelectionDelegate(table))
     return table
+
+
+def _show_empty(table: QTableWidget) -> None:
+    """One centered, muted 'No records' row spanning the whole table — so an
+    empty list reads as intentional instead of looking broken/blank."""
+    from timber.ui import design
+    ncol = max(1, table.columnCount())
+    table.setRowCount(1)
+    item = QTableWidgetItem(i18n.tr("no_records"))
+    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+    item.setForeground(QBrush(QColor(design.c("muted"))))
+    item.setFlags(Qt.ItemFlag.ItemIsEnabled)   # visible but not selectable
+    table.setItem(0, 0, item)
+    table.setSpan(0, 0, 1, ncol)
+    table.setRowHeight(0, 88)
 
 
 def fill_table(table: QTableWidget, rows: list[list], autosize: bool = False) -> None:
@@ -78,6 +119,10 @@ def fill_table(table: QTableWidget, rows: list[list], autosize: bool = False) ->
         }
 
     try:
+        table.clearSpans()          # drop any previous empty-state span
+        if not rows:
+            _show_empty(table)
+            return
         table.setRowCount(len(rows))
         for r, row in enumerate(rows):
             lines = 1
@@ -204,53 +249,22 @@ def stat_card(title: str, value: str, colour: str, subtitle: str = "",
               icon_name: str = "") -> QFrame:
     """A KPI card for the ledger / summary pages.
 
-    This used to be a solid saturated block with white text, which is why the
-    ledgers never matched the Dashboard. It is now the same tile the Dashboard
-    and Reports use — surface background, accent bar down the leading edge,
-    tinted icon chip — and ``colour`` becomes that accent instead of the whole
-    fill. The signature is unchanged so every existing call site still works.
+    Thin wrapper over the ONE shared tile (``design.stat_tile``) so the ledgers
+    look pixel-identical to the Dashboard / Reports tiles (compact size, vivid
+    gradient icon chip). ``colour`` is the accent; the value stays in the normal
+    text colour (ledger figures are neutral, not signed). The optional
+    ``subtitle`` is appended below — the one thing stat_tile has no slot for.
+    The signature is unchanged so every existing call site still works.
     """
     from timber.ui import design
 
-    design.refresh()
-    frame = QFrame()
-    frame.setObjectName("statCard")
-    frame.setStyleSheet(
-        "#statCard{background:" + design.c("surface") + ";border:1px solid "
-        + design.c("border") + ";border-radius:16px;border-left:4px solid "
-        + colour + ";}")
-    design.shadow(frame, blur=20, dy=3)
-    box = QVBoxLayout(frame)
-    box.setContentsMargins(16, 13, 16, 14)
-    box.setSpacing(8)
-
-    top = QHBoxLayout()
-    top.setSpacing(9)
-    if icon_name:
-        chip = QLabel()
-        chip.setFixedSize(32, 32)
-        chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        chip.setStyleSheet(f"background:{design.tint(colour, 38)};border-radius:9px;")
-        try:
-            chip.setPixmap(icons.pixmap(icon_name, colour, 17))
-        except Exception:  # noqa: BLE001
-            pass
-        top.addWidget(chip)
-    t = QLabel(title.upper())
-    t.setWordWrap(True)
-    t.setStyleSheet(
-        f"color:{design.c('muted')};font-size:11px;font-weight:700;letter-spacing:0.6px;")
-    top.addWidget(t, 1)
-    box.addLayout(top)
-
-    v = QLabel(value)
-    v.setStyleSheet(f"color:{design.c('text')};font-size:21px;font-weight:800;")
-    box.addWidget(v)
+    frame, _val = design.stat_tile(
+        title, colour, icon_name, value=value, value_color=design.c("text"))
     if subtitle:
         s = QLabel(subtitle)
         s.setWordWrap(True)
         s.setStyleSheet(f"color:{design.c('muted')};font-size:11px;")
-        box.addWidget(s)
+        frame.layout().addWidget(s)
     return frame
 
 

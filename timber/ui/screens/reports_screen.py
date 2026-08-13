@@ -14,7 +14,10 @@ from datetime import date, timedelta
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QDateEdit,
+    QDialog,
     QFrame,
     QGraphicsDropShadowEffect,
     QGridLayout,
@@ -33,7 +36,7 @@ from timber import i18n
 from timber.core.current_user import CurrentUser
 from timber.db.engine import SessionLocal
 from timber.db.models.party import PARTY_BAPARI, PARTY_FACTORY
-from timber.ui import icons, theme
+from timber.ui import design, icons, theme
 from timber.ui.segmented import SegmentedControl
 
 # Cash-flow row labels / section headings -> i18n keys (same rows as before).
@@ -94,84 +97,6 @@ def _shadow(w) -> None:
     w.setGraphicsEffect(eff)
 
 
-class _Card(QFrame):
-    """White/dark rounded panel with an optional icon + title."""
-
-    def __init__(self, title="", icon_name=""):
-        super().__init__()
-        self.setObjectName("rpCard")
-        self.setStyleSheet(
-            "#rpCard{background:" + _c("surface") + ";border:1px solid " + _c("border") + ";border-radius:16px;}")
-        _shadow(self)
-        self.box = QVBoxLayout(self)
-        self.box.setContentsMargins(20, 18, 20, 18)
-        self.box.setSpacing(12)
-        if title:
-            head = QHBoxLayout(); head.setSpacing(9)
-            if icon_name:
-                ic = QLabel()
-                try:
-                    ic.setPixmap(icons.pixmap(icon_name, _c("accent"), 17))
-                except Exception:  # noqa: BLE001
-                    pass
-                head.addWidget(ic)
-            h = QLabel(title)
-            h.setStyleSheet(f"color:{_c('text')};font-size:14px;font-weight:800;")
-            head.addWidget(h); head.addStretch()
-            self.box.addLayout(head)
-
-    def add(self, w):
-        self.box.addWidget(w)
-
-
-TONES = {
-    "indigo": "#6366f1", "sky": "#0ea5e9", "emerald": "#10b981",
-    "amber": "#f59e0b", "rose": "#f43f5e", "violet": "#8b5cf6",
-    "slate": "#64748b",
-}
-
-
-def _tint(hex_color: str, alpha: int = 38) -> str:
-    c = QColor(hex_color)
-    return f"rgba({c.red()},{c.green()},{c.blue()},{alpha})"
-
-
-class _Tile(QFrame):
-    """KPI card matching the Dashboard's: tinted icon chip + label + value,
-    with a coloured accent bar down the leading edge."""
-
-    def __init__(self, label: str, value: str, color: str | None = None,
-                 icon_name: str = "", tone: str = "slate"):
-        super().__init__()
-        self.setObjectName("rpTile")
-        accent = TONES.get(tone, TONES["slate"])
-        self.setStyleSheet(
-            "#rpTile{background:" + _c("surface") + ";border:1px solid " + _c("border")
-            + ";border-radius:16px;border-left:4px solid " + accent + ";}")
-        _shadow(self)
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 13, 16, 14); lay.setSpacing(9)
-
-        top = QHBoxLayout(); top.setSpacing(9)
-        chip = QLabel()
-        chip.setFixedSize(32, 32)
-        chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        chip.setStyleSheet(f"background:{_tint(accent)};border-radius:9px;")
-        try:
-            chip.setPixmap(icons.pixmap(icon_name or "pie-chart", accent, 17))
-        except Exception:  # noqa: BLE001
-            pass
-        cap = QLabel(label.upper())
-        cap.setStyleSheet(f"color:{_c('muted')};font-size:11px;font-weight:700;letter-spacing:0.6px;")
-        cap.setWordWrap(True)
-        top.addWidget(chip); top.addWidget(cap, 1)
-        lay.addLayout(top)
-
-        val = QLabel(value)
-        val.setStyleSheet(f"color:{color or _c('text')};font-size:21px;font-weight:800;")
-        lay.addWidget(val)
-
-
 class _Rows(QFrame):
     """Borderless label / sign / amount rows (the cash-flow statement)."""
 
@@ -203,6 +128,54 @@ class _Rows(QFrame):
             self.grid.addWidget(row)
 
 
+class _ReportsExportDialog(design.Dialog):
+    """Pick which sections go into the export, then choose PDF or Excel."""
+
+    def __init__(self, current_tab, parent=None) -> None:
+        super().__init__(_t("export"), "download", parent=parent, width=420)
+        self.fmt = "pdf"
+        hint = QLabel(_t("export_choose_sections"))
+        hint.setWordWrap(True)
+        hint.setStyleSheet(f"color:{_c('muted')};font-size:12px;")
+        self.body.addWidget(hint)
+
+        self.cb_cash = QCheckBox(_t("cash_flow"))
+        self.cb_fac = QCheckBox(_t("factories"))
+        self.cb_sup = QCheckBox(_t("suppliers"))
+        # Start with the tab the user is on ticked (never nothing).
+        self.cb_cash.setChecked(current_tab == "cashflow")
+        self.cb_fac.setChecked(current_tab == "factory")
+        self.cb_sup.setChecked(current_tab == "supplier")
+        # (Receivable & Giveable lives on the Financial Position page only.)
+        for cb in (self.cb_cash, self.cb_fac, self.cb_sup):
+            cb.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.body.addWidget(cb)
+
+        pdf, _cancel = self.buttons(_t("export_pdf"))
+        pdf.clicked.connect(lambda: self._go("pdf"))
+        xls = QPushButton(_t("export_excel"))
+        xls.setStyleSheet(design.btn("primary"))
+        xls.setCursor(Qt.CursorShape.PointingHandCursor)
+        xls.clicked.connect(lambda: self._go("xlsx"))
+        self.add_button(xls)
+
+    def _go(self, fmt: str) -> None:
+        if not self.selection():
+            return  # nothing ticked — keep the dialog open
+        self.fmt = fmt
+        self.accept()
+
+    def selection(self) -> set:
+        sel = set()
+        if self.cb_cash.isChecked():
+            sel.add("cashflow")
+        if self.cb_fac.isChecked():
+            sel.add("factory")
+        if self.cb_sup.isChecked():
+            sel.add("supplier")
+        return sel
+
+
 class ReportsScreen(QWidget):
     def __init__(self, current_user: CurrentUser, parent=None) -> None:
         super().__init__(parent)
@@ -215,9 +188,9 @@ class ReportsScreen(QWidget):
         self._to = date.today()
 
         outer = QVBoxLayout(self)
-        # Breathing room between the page title, the tab pills, the period
-        # filter and the content (they were stacked almost edge to edge).
-        outer.setContentsMargins(2, 4, 2, 0); outer.setSpacing(14)
+        # Side inset matches the other pages so the tabs/filter/cards sit off
+        # the panel's rounded edge (they used to hug it at 2px).
+        outer.setContentsMargins(22, 8, 22, 0); outer.setSpacing(14)
 
         # sub-tabs
         self.segment = SegmentedControl([
@@ -227,18 +200,32 @@ class ReportsScreen(QWidget):
         ])
         self.segment.changed.connect(self._set_tab)
         tabrow = QHBoxLayout(); tabrow.addWidget(self.segment); tabrow.addStretch()
+        # One main export: pick any of cash flow / factories / suppliers.
+        self.export_btn = QPushButton(_t("export"))
+        self.export_btn.setStyleSheet(design.btn("primary"))
+        self.export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        try:
+            self.export_btn.setIcon(icons.icon("download", "#ffffff", 15))
+        except Exception:  # noqa: BLE001 - icon is decoration only
+            pass
+        self.export_btn.clicked.connect(self._open_export)
+        tabrow.addWidget(self.export_btn)
         outer.addLayout(tabrow)
 
-        # period filter
+        # period filter — one compact dropdown (shows the current choice, click
+        # to reveal all), defaulting to Day, consistent across the app.
         bar = QHBoxLayout(); bar.setSpacing(9)
         bar.setContentsMargins(0, 0, 0, 4)
-        self.period_seg = SegmentedControl([
-            ("all", _t("all_time"), ""), ("day", _t("today"), ""),
-            ("month", _t("this_month"), ""), ("year", _t("this_year"), ""),
-            ("custom", _t("custom"), ""),
-        ], current="day", compact=True)
-        self.period_seg.changed.connect(self._set_period)
-        bar.addWidget(self.period_seg)
+        bar.addWidget(QLabel(_t("period") + ":"))
+        self.period_combo = QComboBox()
+        for key, label in (("all", _t("all_time")), ("day", _t("today")),
+                           ("month", _t("this_month")), ("year", _t("this_year")),
+                           ("custom", _t("custom"))):
+            self.period_combo.addItem(label, key)
+        self.period_combo.setCurrentIndex(self.period_combo.findData("day"))
+        self.period_combo.currentIndexChanged.connect(
+            lambda: self._set_period(self.period_combo.currentData()))
+        bar.addWidget(self.period_combo)
         self._from_edit = QDateEdit(QDate(self._from.year, self._from.month, self._from.day))
         self._to_edit = QDateEdit(QDate(self._to.year, self._to.month, self._to.day))
         for e in (self._from_edit, self._to_edit):
@@ -254,34 +241,38 @@ class ReportsScreen(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setStyleSheet("QScrollArea{background:transparent;}")
+        scroll.setStyleSheet("QScrollArea{background:transparent;border:none;} QScrollArea > QWidget > QWidget{background:transparent;}")
         body = QWidget()
         self.v = QVBoxLayout(body)
-        self.v.setContentsMargins(2, 2, 2, 8); self.v.setSpacing(16)
+        # outer already provides the side inset; keep the scroll body flush.
+        self.v.setContentsMargins(0, 2, 0, 8); self.v.setSpacing(16)
         scroll.setWidget(body)
         outer.addWidget(scroll, 1)
 
-        # PDF / Excel export, driven by the shared page toolbar. The builder is
-        # called fresh on each click, so it always exports the tab + period the
-        # user is looking at.
-        self._report_builder = self._build_report
-        self._report_name = "reports"
+        # Export is the page's own "Export" button (opens a section picker), not
+        # the shared top-right toolbar — so we do NOT set ``_report_builder``.
 
         self.refresh()
 
-    def _build_report(self):
-        """ReportData for the ACTIVE tab + period (same services as the screen)."""
-        from timber.core.report_data import (
-            cashflow_statement_report,
-            party_performance_report,
-        )
+    def _open_export(self):
+        """Pick which sections to export (cash flow / factories / suppliers),
+        then write one combined PDF or Excel for the current period."""
+        from timber.core.report_data import reports_combined_report
+        from timber.ui.screens.export_helpers import run_export
 
+        dlg = _ReportsExportDialog(self._tab, parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        sel = dlg.selection()
+        if not sel:
+            return
         start, end = self._range()
-        with SessionLocal() as s:
-            if self._tab == "cashflow":
-                return cashflow_statement_report(s, start, end)
-            ptype = PARTY_FACTORY if self._tab == "factory" else PARTY_BAPARI
-            return party_performance_report(s, ptype, start, end)
+
+        def _build():
+            with SessionLocal() as s:
+                return reports_combined_report(s, sel, start, end)
+
+        run_export(self, _build, "reports", dlg.fmt)
 
     # -- filters ------------------------------------------------------
     def _set_tab(self, v):
@@ -364,7 +355,7 @@ class ReportsScreen(QWidget):
         grid = QWidget(); g = QGridLayout(grid)
         g.setContentsMargins(0, 0, 0, 0); g.setSpacing(16)
         for idx, (sec, rows) in enumerate(sections):
-            card = _Card(_t(CF_SECTIONS.get(sec, sec)))
+            card = design.Card(_t(CF_SECTIONS.get(sec, sec)), "wallet")
             tbl = _Rows()
             kv = []
             for r in rows:
@@ -385,30 +376,33 @@ class ReportsScreen(QWidget):
         o = data["overall"]
         vol_label = _t("total_sales") if is_factory else _t("total_purchases")
         tiles = [
-            _Tile(_t("trades"), str(o["trades"]), None, "database", "slate"),
-            _Tile(vol_label, _money(o["volume"]), None,
-                  "receipt" if is_factory else "cart", "indigo" if is_factory else "sky"),
-            _Tile(_t("profit"), _money(o["profit"]), _amt_color(o["profit"]),
-                  "trending-up", "emerald"),
-            _Tile(_t("to_receive"), _money(o["receivable"]), _amt_color(o["receivable"]),
-                  "trending-up", "emerald"),
-            _Tile(_t("to_give"), _money(-o["payable"]), _amt_color(-o["payable"]),
-                  "trending-down", "rose"),
+            design.Tile(_t("trades"), str(o["trades"]), "database", "slate"),
+            design.Tile(vol_label, _money(o["volume"]),
+                        "receipt" if is_factory else "cart",
+                        "indigo" if is_factory else "sky"),
+            design.Tile(_t("profit"), _money(o["profit"]), "trending-up", "emerald",
+                        _amt_color(o["profit"])),
+            design.Tile(_t("to_receive"), _money(o["receivable"]), "trending-up",
+                        "emerald", _amt_color(o["receivable"])),
+            design.Tile(_t("to_give"), _money(-o["payable"]), "trending-down", "rose",
+                        _amt_color(-o["payable"])),
         ]
         if is_factory:
-            tiles.append(_Tile(_t("overdue_30"), _money(o["over30"]),
-                               "#d97706" if o["over30"] else None, "alarm-clock", "amber"))
-            tiles.append(_Tile(_t("overdue_60"), _money(o["over60"]),
-                               _NEG if o["over60"] else None, "alarm-clock", "rose"))
+            tiles.append(design.Tile(_t("overdue_30"), _money(o["over30"]),
+                                     "alarm-clock", "amber",
+                                     "#d97706" if o["over30"] else None))
+            tiles.append(design.Tile(_t("overdue_60"), _money(o["over60"]),
+                                     "alarm-clock", "rose",
+                                     _NEG if o["over60"] else None))
         wrap = QWidget(); tg = QGridLayout(wrap)
         tg.setContentsMargins(0, 0, 0, 0); tg.setSpacing(12)
         for i, tw in enumerate(tiles):
             tg.addWidget(tw, 0, i); tg.setColumnStretch(i, 1)
         self.v.addWidget(wrap)
 
-        card = _Card(_t("factories") if is_factory else _t("suppliers"),
-                     "factory" if is_factory else "book-user")
-        headers = [_t("name"), _t("trades"), vol_label, _t("profit"), _t("balance")]
+        card = design.Card(_t("factories") if is_factory else _t("suppliers"),
+                           "factory" if is_factory else "book-user")
+        headers = [_t("name"), _t("trades"), vol_label, _t("to_receive"), _t("to_give")]
         if is_factory:
             headers += [_t("overdue_30"), _t("overdue_60")]
         rows = data["rows"]
@@ -451,19 +445,24 @@ class ReportsScreen(QWidget):
             tbl.setItem(i, 0, cell(r["name"], _c("text"), right=False, bold=True))
             tbl.setItem(i, 1, cell(str(r["trades"]), _c("text")))
             tbl.setItem(i, 2, cell(_money(r["volume"]), _c("text")))
-            tbl.setItem(i, 3, cell(_money(r["profit"]), _amt_color(r["profit"]), bold=True))
-            tbl.setItem(i, 4, cell(_money(r["balance"]), _amt_color(r["balance"]), bold=True))
+            # balance is display-signed (+ we receive, - we give); split it into
+            # two columns so each party's amount shows under the right heading.
+            bal = r["balance"]
+            tbl.setItem(i, 3, cell(_money(bal) if bal > 0 else "—",
+                                   _POS if bal > 0 else _ZERO, bold=(bal > 0)))
+            tbl.setItem(i, 4, cell(_money(-bal) if bal < 0 else "—",
+                                   _NEG if bal < 0 else _ZERO, bold=(bal < 0)))
             if is_factory:
                 tbl.setItem(i, 5, cell(_money(r["over30"]) if r["over30"] else "—",
                                        "#d97706" if r["over30"] else _c("muted")))
                 tbl.setItem(i, 6, cell(_money(r["over60"]) if r["over60"] else "—",
                                        _NEG if r["over60"] else _c("muted")))
         tbl.setMinimumHeight(min(560, 70 + 34 * max(1, len(rows))))
-        card.add(tbl)
-        if not rows:
-            empty = QLabel(_t("no_data_period"))
-            empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            empty.setStyleSheet(f"color:{_c('muted')};padding:22px;")
-            card.add(empty)
+        if rows:
+            card.add(tbl)
+        else:
+            card.add(design.empty_state(
+                _t("no_data_period"), "",
+                "factory" if is_factory else "book-user"))
         self.v.addWidget(card)
         self.v.addStretch()

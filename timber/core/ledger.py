@@ -224,6 +224,9 @@ class DetailedEntry:
     total: Decimal = ZERO    # gross wood value (weight × rate, before freight)
     freight: Decimal = ZERO  # freight adjustment on the load
     payment_detail: str = "" # bank route for payments (from/to which account)
+    time: str = ""           # HH:MM the row was entered (chronological display)
+    booked_date: date | None = None  # payment entry (booking) date, if it
+    #                                  differs from the received date shown
 
 
 @dataclass
@@ -375,6 +378,9 @@ def detailed_party_statement(
     entries: list[DetailedEntry] = []
     total_loads = total_paid = ZERO
     for entry_date, _order, ref_id, ekind, obj in events:
+        # _order is the row's created_at (used for chronological sort above);
+        # surface it as the entry time so the statement reads as a timeline.
+        entry_time = _order.strftime("%H:%M") if _order and _order != _dt.min else ""
         if ekind == "load":
             gross = balance_amount(obj.bill, obj.freight)
             debit, credit = gross, ZERO
@@ -409,6 +415,7 @@ def detailed_party_statement(
                 money(obj.rate), gross, paid, outstanding, status,
                 debit, credit, running, _expenses_for(obj.id),
                 _counterparty_for(obj.id), money(obj.bill), money(obj.freight),
+                time=entry_time,
             ))
             total_loads += debit
         else:
@@ -417,6 +424,8 @@ def detailed_party_statement(
                 "", "", "", ZERO, money(obj.amount), ZERO, ZERO,
                 obj.method, debit, credit, running,
                 payment_detail=payment_route(obj, party.name),
+                time=entry_time,
+                booked_date=obj.entry_date,
             ))
             total_paid += credit
 

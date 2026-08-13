@@ -26,6 +26,7 @@ from timber.core.current_user import CurrentUser
 from timber.core.permissions import Permission, Role, has_permission
 from timber.db.engine import SessionLocal
 from timber.db.models import BankAccount
+from timber.ui.screens.export_helpers import export_buttons
 from timber.ui.screens.table_utils import SearchBox, fill_table, fmt, make_table
 
 
@@ -91,6 +92,10 @@ class BankAccountsScreen(QWidget):
         self.current_user = current_user
 
         root = QVBoxLayout(self)
+        # Side inset so KPI tiles / table sit off the panel's rounded edge,
+        # consistent with the Dashboard and Reports pages.
+        root.setContentsMargins(22, 8, 22, 14)
+        root.setSpacing(12)
 
         design.refresh()
         totals = QHBoxLayout()
@@ -123,18 +128,20 @@ class BankAccountsScreen(QWidget):
         root.addWidget(self.table)
 
         buttons = QHBoxLayout()
-        self.add_btn = QPushButton(i18n.tr("add"))
-        self.edit_btn = QPushButton(i18n.tr("edit"))
-        self.add_btn.clicked.connect(self._add)
-        self.edit_btn.clicked.connect(self._edit)
-        buttons.addWidget(self.add_btn)
-        buttons.addWidget(self.edit_btn)
+        self.manage_btn = design.manage_button([
+            (i18n.tr("add"), self._add, "plus"),
+            (i18n.tr("edit"), self._edit, "pencil"),
+        ], parent=self)
+        buttons.addWidget(self.manage_btn)
         buttons.addStretch()
+        # Export every account's bank book (PDF / Excel).
+        for b in export_buttons(self, self._build_report, "bank_book", as_widgets=True):
+            buttons.addWidget(b)
         root.addWidget(design.toolbar_wrap(buttons))
 
-        can = has_permission(current_user.role, Permission.MANAGE_SETTINGS)
-        self.add_btn.setEnabled(can)
-        self.edit_btn.setEnabled(can)
+        self.manage_btn.setEnabled(
+            has_permission(current_user.role, Permission.MANAGE_SETTINGS)
+        )
 
         self.refresh()
 
@@ -170,6 +177,13 @@ class BankAccountsScreen(QWidget):
         self.total_label.setText(fmt(total))
         self.cheque_label.setText(fmt(cheque_bal))
         self.loans_label.setText(fmt(loans))
+
+    def _build_report(self):
+        """Every account's bank book (date/opening/in/out/closing) — balances
+        already live in Financial Position, so this exports the movements."""
+        from timber.core.report_data import all_bank_books_report
+        with SessionLocal() as session:
+            return all_bank_books_report(session)
 
     def _selected_id(self) -> int | None:
         row = self.table.currentRow()

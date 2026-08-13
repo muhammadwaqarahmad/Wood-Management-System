@@ -14,14 +14,12 @@ from decimal import Decimal
 from sqlalchemy import select
 
 from PySide6.QtCore import QDate, Qt, Signal
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
     QDialog,
     QDoubleSpinBox,
     QFrame,
-    QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -117,49 +115,6 @@ def _payer_combo() -> QComboBox:
     c.addItem(_t("factory"), PAYER_FACTORY)
     c.addItem(_t("bapari"), PAYER_BAPARI)
     return c
-
-
-def _soft_shadow(widget) -> None:
-    eff = QGraphicsDropShadowEffect(widget)
-    eff.setBlurRadius(18)
-    eff.setXOffset(0)
-    eff.setYOffset(2)
-    eff.setColor(QColor(15, 23, 42, 40 if theme.get_theme() == "dark" else 24))
-    widget.setGraphicsEffect(eff)
-
-
-class _Card(QFrame):
-    def __init__(self, title="", icon_name=""):
-        super().__init__()
-        self.setObjectName("bsCard")
-        self.setStyleSheet(
-            "#bsCard{background:" + _c("surface") + ";border:1px solid " + _c("border") + ";border-radius:16px;}"
-        )
-        _soft_shadow(self)
-        self.box = QVBoxLayout(self)
-        self.box.setContentsMargins(22, 20, 22, 20)
-        self.box.setSpacing(14)
-        if title:
-            head = QHBoxLayout()
-            head.setSpacing(9)
-            if icon_name:
-                ic = QLabel()
-                try:
-                    ic.setPixmap(icons.pixmap(icon_name, _c("accent"), 18))
-                except Exception:  # noqa: BLE001
-                    pass
-                head.addWidget(ic)
-            h = QLabel(title)
-            h.setStyleSheet(f"color:{_c('text')};font-size:15px;font-weight:800;")
-            head.addWidget(h)
-            head.addStretch()
-            self.box.addLayout(head)
-
-    def add(self, w):
-        self.box.addWidget(w)
-
-    def addL(self, lay):
-        self.box.addLayout(lay)
 
 
 class _KgDialog(design.Dialog):
@@ -451,7 +406,7 @@ class BuySellScreen(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setStyleSheet("QScrollArea{background:transparent;}")
+        scroll.setStyleSheet("QScrollArea{background:transparent;border:none;} QScrollArea > QWidget > QWidget{background:transparent;}")
         body = QWidget()
         outer_h = QHBoxLayout(body)
         outer_h.setContentsMargins(16, 6, 16, 8)
@@ -468,7 +423,7 @@ class BuySellScreen(QWidget):
         root.addWidget(scroll, 1)
 
         # --- General Details ---
-        details = _Card(_t("general_details"), "calendar-clock")
+        details = design.Card(_t("general_details"), "calendar-clock")
         grid = QHBoxLayout(); grid.setSpacing(16)
         self.date_edit = QDateEdit(QDate.currentDate())
         self.date_edit.setCalendarPopup(True)
@@ -491,7 +446,7 @@ class BuySellScreen(QWidget):
         self.v.addWidget(details)
 
         # --- Wood Inventory Details ---
-        self.wood_card = _Card(_t("wood_inventory"), "receipt")
+        self.wood_card = design.Card(_t("wood_inventory"), "receipt")
         header = QHBoxLayout(); header.setContentsMargins(0, 0, 0, 0); header.setSpacing(8)
 
         def hcol(text, width, stretch=0):
@@ -529,7 +484,7 @@ class BuySellScreen(QWidget):
         self.v.addWidget(self.wood_card)
 
         # --- Logistics Costs ---
-        charges = _Card(_t("logistics_costs"), "wallet")
+        charges = design.Card(_t("logistics_costs"), "wallet")
         self.loading = _ChargeRow(_t("loading"))
         self.freight = _ChargeRow(_t("freight"))
         self.unloading = _ChargeRow(_t("unloading"))

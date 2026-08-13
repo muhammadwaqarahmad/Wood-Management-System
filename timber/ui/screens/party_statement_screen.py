@@ -54,10 +54,11 @@ class PartyStatementScreen(QWidget):
         self._is_supplier = party_type == PARTY_BAPARI
 
         self._root = QVBoxLayout(self)
-        header = QLabel(i18n.tr(title_key))
-        header.setStyleSheet(
-            f"color:{design.c('text')};font-size:18px;font-weight:800;")
-        self._root.addWidget(header)
+        # Side inset so filters / cards / table sit off the panel's rounded
+        # edge. No in-page title label: the window's page bar already shows the
+        # page name (from the sidebar), so a second one only duplicated it.
+        self._root.setContentsMargins(22, 8, 22, 14)
+        self._root.setSpacing(12)
 
         bar = QHBoxLayout()
         label = i18n.tr("bapari") if self._is_supplier else i18n.tr("factory")
@@ -193,7 +194,8 @@ class PartyStatementScreen(QWidget):
     def _clear_cards(self) -> None:
         self._cards.deleteLater()
         self._cards = QWidget()
-        self._root.insertWidget(2, self._cards)
+        # index 1 = right below the filter bar (index 0), above the table.
+        self._root.insertWidget(1, self._cards)
 
     def _load(self) -> None:
         party_id = self.party_combo.currentData()
@@ -237,11 +239,14 @@ class PartyStatementScreen(QWidget):
         # RECEIVE (owed to us). Same meaning for suppliers and factories.
         if balance < 0:
             label, colour, value = i18n.tr("you_owe"), "#c62828", fmt(-balance)
+            icon = "trending-down"
         elif balance > 0:
             label, colour, value = i18n.tr("owes_you"), "#16a34a", fmt(balance)
+            icon = "trending-up"
         else:
             label, colour, value = i18n.tr("balance"), "#64748b", fmt(ZERO)
-        return stat_card(label, value, colour)
+            icon = "wallet"
+        return stat_card(label, value, colour, icon_name=icon)
 
     def _rebuild_cards(self, st) -> None:
         self._cards.deleteLater()
@@ -249,9 +254,11 @@ class PartyStatementScreen(QWidget):
         layout = QVBoxLayout(self._cards)
         layout.setContentsMargins(0, 0, 0, 0)
         loads_label = i18n.tr("purchases") if self._is_supplier else i18n.tr("sales")
+        loads_icon = "cart" if self._is_supplier else "receipt"
         layout.addLayout(card_strip([
             self._balance_card(st.closing),
-            stat_card(loads_label, fmt(st.total_loads), "#1565c0"),
-            stat_card(i18n.tr("total_paid"), fmt(st.total_paid), "#2e7d32"),
+            stat_card(loads_label, fmt(st.total_loads), "#1565c0", icon_name=loads_icon),
+            stat_card(i18n.tr("total_paid"), fmt(st.total_paid), "#2e7d32",
+                      icon_name="hand-coins"),
         ]))
-        self._root.insertWidget(2, self._cards)
+        self._root.insertWidget(1, self._cards)
