@@ -1,6 +1,9 @@
 """The FastAPI application: wires the routers and CORS together."""
 from __future__ import annotations
 
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -22,11 +25,37 @@ from timber.api.routers import (
     trades,
 )
 
+_log = logging.getLogger("timber.api")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Bring the (cloud) database schema up to head before serving.
+
+    The API queries columns/tables that Alembic migrations add (e.g.
+    payments.entry_date, factory_split_rates). A code deploy does NOT run
+    migrations by itself, so without this a fresh deploy would 500 on those
+    endpoints until someone migrated the DB by hand. Running ``alembic upgrade
+    head`` here (same self-migrate pattern the desktop uses, targeting whatever
+    TIMBER_PG_* points at) keeps schema and code in lock-step on every deploy.
+    It is idempotent — a no-op once the DB is already at head — and guarded so a
+    migration hiccup logs loudly but never takes the whole API offline.
+    """
+    try:
+        from timber.db.init_db import upgrade_to_head
+
+        upgrade_to_head()
+    except Exception:  # noqa: BLE001 - never let a migration error kill the API
+        _log.exception("Startup DB migration failed; serving with current schema")
+    yield
+
+
 app = FastAPI(
     title="Abdul Sattar Woods API",
     version=__version__,
     description="Read-only mobile API over the same accounting core as the "
                 "desktop app.",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
