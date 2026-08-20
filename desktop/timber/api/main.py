@@ -30,6 +30,10 @@ from timber.api.routers import (
 
 _log = logging.getLogger("timber.api")
 
+# Captures any startup migration/seed failure so it can be surfaced by /ready
+# (Railway logs aren't always at hand; this makes the failure visible over HTTP).
+_startup_error: str | None = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -56,7 +60,9 @@ async def lifespan(app: FastAPI):
 
         with SessionLocal() as session:
             ensure_admin(session)
-    except Exception:  # noqa: BLE001 - never let a migration/seed error kill the API
+    except Exception as exc:  # noqa: BLE001 - never let a migration/seed error kill the API
+        global _startup_error
+        _startup_error = f"{type(exc).__name__}: {exc}"
         _log.exception("Startup DB migration/seed failed; serving with current schema")
     yield
 
@@ -110,3 +116,26 @@ def ping(session: Session = Depends(get_session)) -> dict:
     (a free Supabase project auto-pauses after ~7 days with no connections)."""
     session.execute(text("SELECT 1"))
     return {"ok": True, "db": "up"}
+
+
+@app.get("/ready", tags=["meta"])
+def ready() -> dict:
+    """Deploy diagnostic (no auth): did the startup migration + admin seed run?
+    Surfaces the real reason a fresh deploy 500s on login without needing the
+    host's logs. Safe to leave in — it exposes no data, only schema readiness."""
+    from sqlalchemy import func, select
+
+    from timber.db.engine import SessionLocal
+    from timber.db.models import User
+
+    out: dict = {"startup_error": _startup_error}
+    try:
+        with SessionLocal() as s:
+            out["users_table"] = "ok"
+            out["user_count"] = s.scalar(select(func.count()).select_from(User))
+            out["admin_exists"] = (
+                s.scalar(select(User).where(User.username == "admin")) is not None
+            )
+    except Exception as exc:  # noqa: BLE001 - the point is to REPORT the error
+        out["users_table"] = f"{type(exc).__name__}: {exc}"
+    return out
