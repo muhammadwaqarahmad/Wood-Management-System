@@ -48,8 +48,16 @@ async def lifespan(app: FastAPI):
         from timber.db.init_db import upgrade_to_head
 
         upgrade_to_head()
-    except Exception:  # noqa: BLE001 - never let a migration error kill the API
-        _log.exception("Startup DB migration failed; serving with current schema")
+        # Seed the default admin on a brand-new database. The desktop does this
+        # on first run (app.py); the API must too, or a fresh cloud DB has no
+        # user to log in with. Idempotent — a no-op once any user exists.
+        from timber.db.engine import SessionLocal
+        from timber.db.seed import ensure_admin
+
+        with SessionLocal() as session:
+            ensure_admin(session)
+    except Exception:  # noqa: BLE001 - never let a migration/seed error kill the API
+        _log.exception("Startup DB migration/seed failed; serving with current schema")
     yield
 
 

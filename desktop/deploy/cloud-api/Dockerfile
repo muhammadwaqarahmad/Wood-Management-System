@@ -18,6 +18,11 @@ RUN pip install --no-cache-dir -r requirements-api.txt
 
 # Only the Python package is needed (no PyQt UI, no mobile/).
 COPY timber /app/timber
+# The Alembic migrations + config MUST be in the image: the API self-migrates on
+# startup (config.ALEMBIC_DIR -> /app/alembic). Without these the migration
+# silently fails, no tables are created, and every endpoint 500s.
+COPY alembic /app/alembic
+COPY alembic.ini /app/alembic.ini
 
 EXPOSE 8000
 # Cloud hosts inject $PORT; default to 8000 locally. Always bind 0.0.0.0.
