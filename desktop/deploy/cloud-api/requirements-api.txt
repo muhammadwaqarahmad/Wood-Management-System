@@ -5,6 +5,7 @@ uvicorn[standard]==0.49.0
 python-multipart==0.0.32       # multipart/form-data for /backup/restore-upload
 pyjwt==2.13.0
 SQLAlchemy==2.0.36
+alembic==1.14.0                # self-migrate the schema on startup (init_db.upgrade_to_head)
 psycopg[binary]==3.2.3
 bcrypt==4.2.1
 python-dotenv==1.0.1
