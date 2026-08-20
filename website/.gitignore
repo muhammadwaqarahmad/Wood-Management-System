@@ -1,0 +1,11 @@
+# dependencies / build
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# env (secrets — the API URL/keys live here, never in git)
+.env.local
+.env*.local

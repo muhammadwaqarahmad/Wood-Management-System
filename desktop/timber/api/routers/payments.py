@@ -18,8 +18,13 @@ from timber.core.bank_service import ensure_not_overdrawn
 from timber.core.current_user import CurrentUser
 from timber.core.payment_service import create_payment, list_payments, void_payment
 from timber.core.permissions import Permission
+from timber.core.unknown_payment_service import (
+    claim_unknown_payment,
+    create_unknown_payment,
+    void_unknown_payment,
+)
 from timber.db.models.party import PARTY_BAPARI, PARTY_FACTORY
-from timber.db.models.payment import METHOD_CASH, PAYMENT_OUT
+from timber.db.models.payment import METHOD_CASH, METHOD_ONLINE, PAYMENT_IN, PAYMENT_OUT
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
@@ -104,6 +109,69 @@ def void(
     """Void a saved payment (reverses it in the ledger and the bank)."""
     try:
         void_payment(session, payment_id, created_by=user.id)
+        session.commit()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"ok": True}
+
+
+# ------------------------------------------------------ unknown receipts ---
+# Money that arrived with no known sender; later CLAIMED to a party.
+
+class UnknownIn(BaseModel):
+    txn_date: date
+    amount: float
+    bank_account_id: int
+    direction: str = PAYMENT_IN
+    method: str = METHOD_ONLINE
+    reference_no: str | None = None
+    notes: str | None = None
+
+
+@router.post("/unknown")
+def create_unknown(
+    body: UnknownIn,
+    session: Session = Depends(get_session),
+    user: CurrentUser = Depends(require_permission(Permission.MANAGE_PAYMENTS)),
+) -> dict:
+    try:
+        up = create_unknown_payment(
+            session, txn_date=body.txn_date, amount=body.amount,
+            bank_account_id=body.bank_account_id, direction=body.direction,
+            method=body.method, reference_no=body.reference_no,
+            notes=body.notes, created_by=user.id,
+        )
+        if body.direction == PAYMENT_OUT:
+            ensure_not_overdrawn(session, body.bank_account_id)
+        session.commit()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"id": up.id}
+
+
+@router.post("/unknown/{unknown_id}/claim")
+def claim_unknown(
+    unknown_id: int,
+    party_id: int = Query(...),
+    session: Session = Depends(get_session),
+    user: CurrentUser = Depends(require_permission(Permission.MANAGE_PAYMENTS)),
+) -> dict:
+    try:
+        claim_unknown_payment(session, unknown_id, party_id, created_by=user.id)
+        session.commit()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"ok": True}
+
+
+@router.post("/unknown/{unknown_id}/void")
+def void_unknown(
+    unknown_id: int,
+    session: Session = Depends(get_session),
+    user: CurrentUser = Depends(require_permission(Permission.MANAGE_PAYMENTS)),
+) -> dict:
+    try:
+        void_unknown_payment(session, unknown_id, created_by=user.id)
         session.commit()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

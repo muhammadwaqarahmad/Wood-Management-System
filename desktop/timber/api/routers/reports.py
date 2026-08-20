@@ -3,14 +3,19 @@
 Same three data sets the desktop Reports page shows, from the same services."""
 from __future__ import annotations
 
+import os
+import tempfile
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from starlette.background import BackgroundTask
 
 from timber.api.deps import get_current_user, get_session
 from timber.api.serialize import jsonable
 from timber.core.current_user import CurrentUser
+from timber.core.report_data import reports_combined_report
 from timber.core.reports import (
     aging_report,
     daily_book,
@@ -86,3 +91,43 @@ def wood_summary_ep(
 ) -> dict:
     """Total weight bought vs sold per wood type."""
     return {"rows": jsonable(wood_type_summary(session))}
+
+
+_VALID_SECTIONS = {"cashflow", "factory", "supplier"}
+
+
+@router.get("/export")
+def export(
+    fmt: str = Query("pdf", description="'pdf' or 'xlsx'"),
+    sections: str = Query("cashflow", description="comma list of cashflow,factory,supplier"),
+    start: date | None = None,
+    end: date | None = None,
+    session: Session = Depends(get_session),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Build the combined Reports export (same as the desktop) and stream it as a
+    downloadable PDF or Excel file. Reuses report_data.reports_combined_report and
+    the server-side reportlab/openpyxl writers."""
+    sel = [s for s in sections.split(",") if s in _VALID_SECTIONS]
+    if not sel:
+        raise HTTPException(422, "sections must include cashflow, factory and/or supplier")
+    report = reports_combined_report(session, sel, start, end)
+    # reportlab/openpyxl are heavy — import only when someone actually exports.
+    from timber.core import excel_export, pdf_export
+
+    is_xlsx = fmt == "xlsx"
+    writer = excel_export if is_xlsx else pdf_export
+    suffix = "xlsx" if is_xlsx else "pdf"
+    media = ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+             if is_xlsx else "application/pdf")
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix="." + suffix)
+    tmp.close()
+    try:
+        writer.write(report, tmp.name)
+    except Exception as exc:  # noqa: BLE001
+        os.unlink(tmp.name)
+        raise HTTPException(500, f"Export failed: {exc}")
+    return FileResponse(
+        tmp.name, filename=f"reports.{suffix}", media_type=media,
+        background=BackgroundTask(os.unlink, tmp.name),  # delete the temp file after sending
+    )

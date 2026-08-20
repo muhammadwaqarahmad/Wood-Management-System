@@ -13,7 +13,9 @@ from timber import __version__, config
 from timber.api import settings
 from timber.api.deps import get_session
 from timber.api.routers import (
+    audit,
     auth,
+    backup,
     dashboard,
     ledgers,
     master,
@@ -23,6 +25,7 @@ from timber.api.routers import (
     reports,
     search,
     trades,
+    users,
 )
 
 _log = logging.getLogger("timber.api")
@@ -66,7 +69,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(audit.router)
 app.include_router(auth.router)
+app.include_router(backup.router)
 app.include_router(dashboard.router)
 app.include_router(ledgers.router)
 app.include_router(master.router)
@@ -76,6 +81,7 @@ app.include_router(payments.router)
 app.include_router(reports.router)
 app.include_router(search.router)
 app.include_router(trades.router)
+app.include_router(users.router)
 
 
 @app.get("/health", tags=["meta"])

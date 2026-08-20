@@ -13,13 +13,13 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from timber import i18n
 from timber.core.calculations import money
 from timber.db.models import AccountTransfer, BankAccount, Expense, Payment
-from timber.db.models.payment import PAYMENT_IN
+from timber.db.models.payment import CHEQUE_CLEARED, METHOD_CHEQUE, PAYMENT_IN
 
 ZERO = Decimal("0.00")
 
@@ -42,11 +42,19 @@ def _events_for(session: Session, account_id: int) -> list[BankEvent]:
     here = this.name if this else "—"
     events: list[BankEvent] = []
 
+    # A cheque only affects the account once it CLEARS — the same rule the rest
+    # of the app uses (bank_service.all_account_balances). Without this, the bank
+    # book deducted/added a cheque the moment it was written, so its closing
+    # drifted from the Dashboard / Bank Accounts balance by any uncleared cheque.
+    cheque_ok = or_(
+        Payment.method != METHOD_CHEQUE, Payment.cheque_status == CHEQUE_CLEARED
+    )
     for p in session.scalars(
         select(Payment)
         .options(joinedload(Payment.party))
         .where(
-            Payment.bank_account_id == account_id, Payment.is_void.is_(False)
+            Payment.bank_account_id == account_id, Payment.is_void.is_(False),
+            cheque_ok,
         )
     ):
         party = p.party.name if p.party else "—"
