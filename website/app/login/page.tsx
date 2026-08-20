@@ -3,11 +3,13 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { useBusiness } from "@/lib/business";
 import { ApiError } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const { name: businessName } = useBusiness();
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -36,7 +38,7 @@ export default function LoginPage() {
           <span className="brand-mark"><Icon name="factory" size={18} /></span>
           <div>
             <div className="brand" style={{ color: "var(--text)" }}>
-              Abdul Sattar Woods
+              {businessName}
             </div>
             <div className="muted" style={{ fontSize: 12 }}>
               Sign in to continue

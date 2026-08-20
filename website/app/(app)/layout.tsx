@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { useBusiness } from "@/lib/business";
 import { useLang } from "@/lib/i18n";
 import { applyTheme, currentTheme } from "@/lib/theme";
 import { Icon } from "@/components/Icon";
@@ -80,6 +81,7 @@ const EXPORT_ROUTES = new Set<string>([]);
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, loading, logout } = useAuth();
   const { t } = useLang();
+  const { name: businessName } = useBusiness();
   const router = useRouter();
   const pathname = usePathname();
   const [navOpen, setNavOpen] = useState(true);   // sidebar: open on desktop, drawer on mobile
@@ -121,7 +123,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const pageTitle = active ? t(active.key) : (EXTRA_TITLES[pathname] ?? "");
   // The desktop chip shows the BUSINESS initials (brand mark), not the user's,
   // and the dropdown reads "Abdul Sattar Woods | {user}" + the role label.
-  const APP_NAME = "Abdul Sattar Woods";
+  const APP_NAME = businessName;
   const brandMark =
     APP_NAME.split(" ").filter(Boolean).slice(0, 3).map((w) => w[0]).join("").toUpperCase() || "A";
   const roleLabel =
@@ -175,7 +177,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <button className="menu-toggle" onClick={() => setNavOpen((o) => !o)} aria-label="Menu">
             <Icon name="menu" size={20} />
           </button>
-          <span className="brand">Abdul Sattar Woods</span>
+          <span className="brand">{APP_NAME}</span>
         </div>
 
         {/* purple gradient header bar: bell + divider + avatar chip (no chevron) */}

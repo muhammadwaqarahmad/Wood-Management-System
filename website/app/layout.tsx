@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
+import { BusinessProvider } from "@/lib/business";
 import { LangProvider } from "@/lib/i18n";
 import { ToastProvider } from "@/lib/toast";
 
@@ -25,7 +26,9 @@ export default function RootLayout({
       <body>
         <AuthProvider>
           <LangProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <BusinessProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </BusinessProvider>
           </LangProvider>
         </AuthProvider>
       </body>

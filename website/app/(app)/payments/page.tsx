@@ -6,6 +6,7 @@ import { money } from "@/lib/format";
 import { Icon } from "@/components/Icon";
 import { SearchSelect } from "@/components/SearchSelect";
 import { useToast } from "@/lib/toast";
+import { useBusiness } from "@/lib/business";
 
 /* Mirrors the desktop PaymentEntryScreen (timber/ui/screens/payment_entry.py):
    Factory + Supplier tabs; each has a "Record payment" modal (party side + our
@@ -56,6 +57,7 @@ const SPLIT_SIDES = [
 
 function Panel({ kind }: { kind: "factory" | "supplier" }) {
   const toast = useToast();
+  const { name: businessName } = useBusiness();
   const isFactory = kind === "factory";
   const [rows, setRows] = useState<Row[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
@@ -194,7 +196,7 @@ function Panel({ kind }: { kind: "factory" | "supplier" }) {
                 </div>
                 {/* Our side */}
                 <div className="gbox">
-                  <div className="gbox-title">Abdul Sattar Woods</div>
+                  <div className="gbox-title">{businessName}</div>
                   <Field label="Direction">
                     <div className="seg-dir">
                       <button className={"btn-ghost" + (f.direction === "out" ? " split-on" : "")} onClick={() => setF({ ...f, direction: "out" })}>We Paid</button>

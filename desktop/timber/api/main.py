@@ -13,6 +13,7 @@ from timber import __version__, config
 from timber.api import settings
 from timber.api.deps import get_session
 from timber.api.routers import (
+    app_config,
     audit,
     auth,
     backup,
@@ -55,11 +56,15 @@ async def lifespan(app: FastAPI):
         # Seed the default admin on a brand-new database. The desktop does this
         # on first run (app.py); the API must too, or a fresh cloud DB has no
         # user to log in with. Idempotent — a no-op once any user exists.
+        from timber.core.app_settings_service import load_and_apply_business_name
         from timber.db.engine import SessionLocal
         from timber.db.seed import ensure_admin
 
         with SessionLocal() as session:
             ensure_admin(session)
+            # Honour the DB-configured business name (Settings → Business name)
+            # so /health, exports and the payer label match the website.
+            load_and_apply_business_name(session)
     except Exception as exc:  # noqa: BLE001 - never let a migration/seed error kill the API
         global _startup_error
         _startup_error = f"{type(exc).__name__}: {exc}"
@@ -83,6 +88,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(app_config.router)
 app.include_router(audit.router)
 app.include_router(auth.router)
 app.include_router(backup.router)

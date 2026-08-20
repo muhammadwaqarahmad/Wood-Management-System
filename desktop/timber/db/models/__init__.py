@@ -6,6 +6,7 @@ Importing them here ensures every model is registered on
 """
 
 from timber.db.models.account_transfer import AccountTransfer
+from timber.db.models.app_setting import AppSetting
 from timber.db.models.audit_log import AuditLog
 from timber.db.models.bank_account import BankAccount
 from timber.db.models.bapari_txn import BapariTxn

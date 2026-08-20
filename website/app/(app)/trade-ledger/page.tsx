@@ -5,6 +5,7 @@ import { api, ApiError } from "@/lib/api";
 import { money } from "@/lib/format";
 import { Icon } from "@/components/Icon";
 import { useToast } from "@/lib/toast";
+import { useBusiness } from "@/lib/business";
 
 /* Mirrors the desktop TradeLedgerScreen (timber/ui/screens/trade_ledger_screen.py):
    every trade line — supplier side (buy rate / purchase / paid?) and factory side
@@ -48,22 +49,22 @@ function rangeQS(p: string, from: string, to: string): string {
 }
 
 // Who paid a charge: us -> business, bapari -> supplier, factory -> factory.
-function payerLabel(code: string, sup: string, fac: string): string {
-  if (code === "us") return APP_NAME;
+function payerLabel(code: string, sup: string, fac: string, appName = APP_NAME): string {
+  if (code === "us") return appName;
   if (code === "bapari") return sup || "Supplier";
   if (code === "factory") return fac || "Factory";
   return code || "";
 }
-function expenseText(amt: number, payer: string, sup: string, fac: string, payer2: string | null, split: number): string {
+function expenseText(amt: number, payer: string, sup: string, fac: string, payer2: string | null, split: number, appName = APP_NAME): string {
   if (!(amt > 0)) return "";
-  const n1 = payerLabel(payer, sup, fac);
+  const n1 = payerLabel(payer, sup, fac, appName);
   if (payer2 && split > 0 && split < amt) {
-    const n2 = payerLabel(payer2, sup, fac);
+    const n2 = payerLabel(payer2, sup, fac, appName);
     return `${money(amt)} (${money(split)} ${n1}, ${money(amt - split)} ${n2})`;
   }
   return `${money(amt)} (${n1})`;
 }
-function expensesSummary(r: Row): string {
+function expensesSummary(r: Row, appName = APP_NAME): string {
   const parts: string[] = [];
   const items: [number, string, string | null, number, string][] = [
     [r.freight, r.freight_payer, r.freight_payer2, r.freight_split, "Freight"],
@@ -71,7 +72,7 @@ function expensesSummary(r: Row): string {
     [r.unloading, r.unloading_payer, r.unloading_payer2, r.unloading_split, "Unloading"],
   ];
   for (const [amt, p1, p2, split, key] of items) {
-    const t = expenseText(amt, p1, r.supplier_name, r.factory_name, p2, split);
+    const t = expenseText(amt, p1, r.supplier_name, r.factory_name, p2, split, appName);
     if (t) parts.push(`${key}: ${t}`);
   }
   return parts.join("\n");
@@ -94,6 +95,7 @@ function Card({ label, value, color, icon, sub }: { label: string; value: string
 
 export default function TradeLedgerPage() {
   const toast = useToast();
+  const { name: businessName } = useBusiness();
   const [period, setPeriod] = useState("day");
   const [from, setFrom] = useState(() => iso(new Date()));
   const [to, setTo] = useState(() => iso(new Date()));
@@ -128,7 +130,7 @@ export default function TradeLedgerPage() {
     ? capped.filter((r) => [r.txn_date, r.vehicle, r.wood, r.supplier_name, r.factory_name]
         .some((v) => (v || "").toLowerCase().includes(q.toLowerCase())))
     : capped;
-  const showFreight = useMemo(() => rows.some((r) => expensesSummary(r) !== ""), [rows]);
+  const showFreight = useMemo(() => rows.some((r) => expensesSummary(r, businessName) !== ""), [rows, businessName]);
   const profit = data?.totals.profit ?? 0;
 
   return (
@@ -201,7 +203,7 @@ export default function TradeLedgerPage() {
                 <td className="right">{money(r.sale_bill)}</td>
                 <td style={{ color: STATUS_COLOR[r.factory_status] || "#475569", fontWeight: 600 }}>{STATUS_LABEL[r.factory_status] || r.factory_status}</td>
                 <td className="right" style={{ color: r.profit >= 0 ? "#2e7d32" : "#c62828" }}>{money(r.profit)}</td>
-                {showFreight && <td style={{ whiteSpace: "pre-line", maxWidth: 220 }}>{expensesSummary(r) || "—"}</td>}
+                {showFreight && <td style={{ whiteSpace: "pre-line", maxWidth: 220 }}>{expensesSummary(r, businessName) || "—"}</td>}
               </tr>
             ))}
           </tbody>

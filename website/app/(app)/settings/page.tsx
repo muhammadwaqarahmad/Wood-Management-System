@@ -6,6 +6,7 @@ import { api, ApiError } from "@/lib/api";
 import { useLang, type Lang } from "@/lib/i18n";
 import { applyTheme, currentTheme, type Theme } from "@/lib/theme";
 import { useToast } from "@/lib/toast";
+import { useBusiness } from "@/lib/business";
 import { Icon } from "@/components/Icon";
 
 /* Mirrors the desktop SettingsScreen (timber/ui/screens/settings_screen.py):
@@ -49,8 +50,11 @@ function ago(iso: string) {
 export default function SettingsPage() {
   const { lang, setLang } = useLang();
   const toast = useToast();
+  const business = useBusiness();
   const [pendLang, setPendLang] = useState<Lang>("en");
   const [pendTheme, setPendTheme] = useState<Theme>("light");
+  const [bizEn, setBizEn] = useState("");
+  const [bizUr, setBizUr] = useState("");
 
   const [st, setSt] = useState<Status | null>(null);
   const [canBackup, setCanBackup] = useState(true);
@@ -64,6 +68,19 @@ export default function SettingsPage() {
     setPendLang(lang);
     setPendTheme(currentTheme() === "dark" ? "dark" : "light");
   }, [lang]);
+  // Pre-fill the business-name fields from the live value.
+  useEffect(() => { setBizEn(business.nameEn); setBizUr(business.nameUr); }, [business.nameEn, business.nameUr]);
+
+  async function saveBusiness() {
+    if (!bizEn.trim() && !bizUr.trim()) { toast.warning("Enter a business name."); return; }
+    setBusy(true);
+    try {
+      await api.put("/settings/business", { name_en: bizEn.trim(), name_ur: bizUr.trim() });
+      await business.refresh();   // updates headers/login/labels across the site live
+      toast.success("Business name updated.");
+    } catch (e) { toast.error(errMsg(e, "Could not save the business name.")); }
+    finally { setBusy(false); }
+  }
 
   const loadStatus = useCallback(async () => {
     try {
@@ -140,6 +157,26 @@ export default function SettingsPage() {
           </label>
         </div>
         <div className="set-row"><button className="btn" onClick={applyAppearance}>Apply</button></div>
+      </Card>
+
+      {/* ---------------- Business name ---------------- */}
+      <Card title="Business name" icon="landmark"
+        subtitle="Shown across the app — every page header, the login screen, PDF/Excel exports and the 'we paid' label. Takes effect on the website immediately; the desktop app and exports pick it up on their next start.">
+        <div className="grid2">
+          <label className="fld"><span>Name (English)</span>
+            <input className="input" value={bizEn} onChange={(e) => setBizEn(e.target.value)} disabled={!canBackup} />
+          </label>
+          <label className="fld"><span>Name (اردو)</span>
+            <input className="input" value={bizUr} onChange={(e) => setBizUr(e.target.value)} disabled={!canBackup} />
+          </label>
+        </div>
+        <div className="set-row">
+          <button className="btn" onClick={saveBusiness}
+            disabled={!canBackup || busy || (!bizEn.trim() && !bizUr.trim())}>
+            {busy ? "Saving…" : "Save business name"}
+          </button>
+        </div>
+        {!canBackup && <p className="set-note">Changing the business name needs the admin role.</p>}
       </Card>
 
       {!canBackup && (

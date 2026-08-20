@@ -44,6 +44,11 @@ def _startup_init() -> None:
         try:
             ensure_admin(session)
             _dbstep("ensure_admin")
+            # Apply the DB-configured business name (Settings → Business name)
+            # so titles, exports and labels use it; env value is the default.
+            from timber.core.app_settings_service import load_and_apply_business_name
+            load_and_apply_business_name(session)
+            _dbstep("business_name")
             from timber.db.seed_master import (
                 ensure_master_data,
                 ensure_unknown_parties,
